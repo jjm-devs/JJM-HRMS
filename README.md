@@ -1,59 +1,593 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# JJM Brain HRMS - Project Structure Guide
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+## 1. Core Rule
 
-## About Laravel
+The project has two separate areas:
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+```text
+1. Super Master Admin
+   Built with Filament.
+   Used only by Super Admin.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+2. HRMS Application
+   Built with normal Laravel, Blade, Livewire, and Tailwind.
+   Used by HR users and employees.
+```
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+Filament should only be used for the Super Master configuration panel.
 
-## Learning Laravel
+Do not use Filament for HR or employee working screens.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+---
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## 2. Main URLs
 
-## Laravel Sponsors
+```text
+/admin                Super Master Admin Panel
+/                     Shared login page
+/dashboard            HR dashboard
+/employee/dashboard   Employee dashboard
+```
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+Access rules:
 
-### Premium Partners
+```text
+users.is_admin = true
+  Can access /admin
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+users.is_hr = true
+  Can access /dashboard
 
-## Contributing
+users.is_admin = false and users.is_hr = false
+  Employee user, can access /employee/dashboard
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Super Admin users should log in from `/admin`.
 
-## Code of Conduct
+HR users and employees should log in from `/`.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+---
 
-## Security Vulnerabilities
+## 3. Route Structure
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Keep route files small and separated by user area.
 
-## License
+```text
+routes/
+  web.php          Includes the route files only
+  auth.php         Shared login/logout routes
+  hr.php           HR working routes
+  employee.php     Employee self-service routes
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Current responsibility:
+
+```text
+routes/auth.php
+  /
+  /logout
+
+routes/hr.php
+  /dashboard
+
+routes/employee.php
+  /employee/dashboard
+```
+
+When adding new pages:
+
+```text
+HR pages go in routes/hr.php
+Employee pages go in routes/employee.php
+Shared auth pages go in routes/auth.php
+```
+
+---
+
+## 4. App Folder Structure
+
+Recommended structure:
+
+```text
+app/
+  Filament/
+    Resources/
+    Pages/
+    Widgets/
+
+  Http/
+    Controllers/
+      Hr/
+      Employee/
+    Middleware/
+
+  Livewire/
+    Auth/
+    Hr/
+    Employee/
+
+  Models/
+
+  Services/
+    Hr/
+    Employees/
+    Attendance/
+    Leave/
+    Payroll/
+    Documents/
+    Workflows/
+
+  Actions/
+    Employees/
+    Attendance/
+    Leave/
+    Payroll/
+    Documents/
+
+  Enums/
+
+  Support/
+    Access/
+    Codes/
+```
+
+---
+
+## 5. Filament Structure
+
+Filament is only for the Super Master Admin Panel.
+
+Current path:
+
+```text
+app/Filament/Resources/
+  DepartmentStreams/
+  EmploymentTypes/
+  HrScopeAssignments/
+  OrgUnits/
+  Users/
+```
+
+Use Filament for:
+
+```text
+Organization Units
+Department Streams
+Employment Types
+Users
+HR Scope Assignments
+System master data
+System configuration
+```
+
+Do not use Filament for:
+
+```text
+HR employee management
+Employee self-service
+Attendance operations
+Leave applications
+Payroll operations
+Document upload screens
+```
+
+Those should be normal Laravel/Livewire pages.
+
+---
+
+## 6. Livewire Structure
+
+Livewire components should be grouped by user area and module.
+
+Recommended:
+
+```text
+app/Livewire/
+  Auth/
+    Login.php
+
+  Hr/
+    Employees/
+      ListEmployees.php
+      CreateEmployee.php
+      EditEmployee.php
+    Attendance/
+    Leave/
+    Payroll/
+    Documents/
+    Transfers/
+    Reports/
+
+  Employee/
+    Profile/
+    Attendance/
+    Leave/
+    Documents/
+    Payslips/
+```
+
+Matching Blade views:
+
+```text
+resources/views/livewire/
+  auth/
+    login.blade.php
+
+  hr/
+    employees/
+    attendance/
+    leave/
+    payroll/
+    documents/
+
+  employee/
+    profile/
+    attendance/
+    leave/
+    documents/
+```
+
+Rule:
+
+```text
+If the screen is interactive, use Livewire.
+If the screen is only a simple static page, use a normal Blade view.
+```
+
+---
+
+## 7. View Structure
+
+Recommended:
+
+```text
+resources/views/
+  components/
+    layouts/
+      app.blade.php
+    ui/
+
+  auth/
+    login.blade.php
+
+  hr/
+    dashboard.blade.php
+    employees/
+    attendance/
+    leave/
+    payroll/
+    documents/
+    transfers/
+    reports/
+
+  employee/
+    dashboard.blade.php
+    profile/
+    attendance/
+    leave/
+    documents/
+    payslips/
+
+  livewire/
+    auth/
+    hr/
+    employee/
+```
+
+Layout rule:
+
+```text
+Use resources/views/components/layouts/app.blade.php as the shared base layout.
+Later, create separate HR/Employee layouts only if the UI becomes different enough.
+```
+
+---
+
+## 8. Models
+
+Models live in:
+
+```text
+app/Models/
+```
+
+Current foundation models:
+
+```text
+User.php
+OrgUnit.php
+DepartmentStream.php
+EmploymentType.php
+HrScopeAssignment.php
+EmployeeManagerAssignment.php
+```
+
+Future models:
+
+```text
+Employee.php
+EmployeeContact.php
+EmployeeFamilyMember.php
+EmployeeQualification.php
+EmployeeExperience.php
+AttendanceLog.php
+LeaveApplication.php
+Document.php
+PayrollBatch.php
+PayrollItem.php
+ServiceBook.php
+TransferRequest.php
+```
+
+Rule:
+
+```text
+Models should contain relationships, casts, scopes, and simple model helpers.
+Large business logic should go into Services or Actions.
+```
+
+---
+
+## 9. Services
+
+Services should contain business logic that may be reused by multiple controllers or Livewire components.
+
+Recommended:
+
+```text
+app/Services/
+  Hr/
+    EmployeeAccessService.php
+
+  Employees/
+    EmployeeProfileService.php
+    EmployeeCodeService.php
+
+  Attendance/
+    AttendanceCalculationService.php
+
+  Leave/
+    LeaveBalanceService.php
+    LeaveApprovalService.php
+
+  Payroll/
+    PayrollCalculationService.php
+
+  Documents/
+    DocumentStorageService.php
+
+  Workflows/
+    WorkflowService.php
+```
+
+Example:
+
+```text
+EmployeeAccessService
+  Decides which employees an HR user can view/create/update/approve.
+```
+
+---
+
+## 10. Actions
+
+Actions should contain one focused operation.
+
+Recommended:
+
+```text
+app/Actions/
+  Employees/
+    CreateEmployee.php
+    UpdateEmployee.php
+
+  Leave/
+    SubmitLeaveApplication.php
+    ApproveLeaveApplication.php
+
+  Attendance/
+    MarkAttendance.php
+    ApproveAttendanceCorrection.php
+```
+
+Rule:
+
+```text
+Use Actions when a task has clear steps and may be called from different places.
+```
+
+Example:
+
+```text
+CreateEmployee.php
+  Validate final data
+  Create user if needed
+  Create employee profile
+  Assign org unit
+  Attach documents if needed
+  Write audit log later
+```
+
+---
+
+## 11. Middleware
+
+Current middleware:
+
+```text
+app/Http/Middleware/
+  EnsureHrUser.php
+  EnsureEmployeeUser.php
+```
+
+Use middleware for area-level access:
+
+```text
+EnsureHrUser
+  Protects HR dashboard and HR routes.
+
+EnsureEmployeeUser
+  Protects employee dashboard and employee routes.
+```
+
+Detailed data access should not be handled only by middleware.
+
+Data access should use:
+
+```text
+HR scope assignments
+Services
+Policies later
+```
+
+---
+
+## 12. Database Structure
+
+Migrations remain in:
+
+```text
+database/migrations/
+```
+
+For now Laravel's normal migration folder is fine.
+
+As the project grows, use clear migration names:
+
+```text
+create_employees_table
+create_employee_contacts_table
+create_attendance_logs_table
+create_leave_applications_table
+create_documents_table
+```
+
+Seeders:
+
+```text
+database/seeders/
+  DatabaseSeeder.php
+  OrgUnitSeeder.php
+```
+
+Recommended future seeders:
+
+```text
+UserSeeder.php
+MasterDataSeeder.php
+LeaveTypeSeeder.php
+DesignationSeeder.php
+```
+
+---
+
+## 13. HR Scope Rule
+
+HR access should be based on:
+
+```text
+Organization scope
+Department stream
+Employment type
+Explicit employee assignment
+```
+
+Current foundation:
+
+```text
+hr_scope_assignments
+  user_id
+  org_unit_id
+  include_child_units
+  department_stream_id
+  employment_type_id
+  can_view
+  can_create
+  can_update
+  can_delete
+  can_approve
+```
+
+Meaning:
+
+```text
+include_child_units = false
+  HR can manage only the exact selected org unit.
+
+include_child_units = true
+  HR can manage the selected org unit and all child org units.
+```
+
+Employee access should eventually be resolved by:
+
+```text
+app/Services/Hr/EmployeeAccessService.php
+```
+
+---
+
+## 14. Naming Rules
+
+Use clear names.
+
+Good:
+
+```text
+Hr/Employees/CreateEmployee.php
+Employee/Profile/ViewProfile.php
+Services/Hr/EmployeeAccessService.php
+Actions/Employees/CreateEmployee.php
+```
+
+Avoid:
+
+```text
+DataManager.php
+Helper.php
+CommonService.php
+ProcessController.php
+```
+
+---
+
+## 15. Build Order
+
+Recommended next build order:
+
+```text
+1. Employee database tables
+2. Employee model relationships
+3. HR employee list page
+4. HR create employee page
+5. Employee dashboard connected to employee profile
+6. HR scope filtering
+7. Document upload
+8. Leave module
+9. Attendance module
+10. Payroll module
+```
+
+---
+
+## 16. Current Philosophy
+
+Keep Super Master configuration and daily HR work separate.
+
+```text
+Super Master Admin:
+  Configure the system.
+
+HR Panel:
+  Operate the system.
+
+Employee Panel:
+  Self-service.
+```
+
+Keep business logic out of Blade files.
+
+Keep Livewire components focused on screen interaction.
+
+Keep reusable business rules in services/actions.
+
+Keep access control explicit and easy to test.
