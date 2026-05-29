@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>JJM Brain HRMS - Model Map</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --bg: #f8fafc;
+            --panel: #ffffff;
+            --text: #0f172a;
+            --muted: #64748b;
+            --line: #e2e8f0;
+            --blue: #1d4ed8;
+            --soft-blue: #dbeafe;
+            --green: #047857;
+            --amber: #b45309;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            border-bottom: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.94);
+            backdrop-filter: blur(12px);
+        }
+        .wrap { max-width: 1180px; margin: 0 auto; padding: 24px; }
+        .header-row {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: 1fr;
+        }
+        h1 { margin: 0; font-size: 28px; line-height: 1.2; }
+        p { line-height: 1.6; }
+        .muted { color: var(--muted); }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 4px 10px;
+            background: var(--soft-blue);
+            color: var(--blue);
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+        }
+        .warning {
+            margin-top: 16px;
+            border: 1px solid #fde68a;
+            background: #fffbeb;
+            color: #92400e;
+            border-radius: 10px;
+            padding: 14px 16px;
+        }
+        input {
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 12px 14px;
+            font: inherit;
+            background: #fff;
+        }
+        input:focus {
+            outline: 2px solid #bfdbfe;
+            border-color: var(--blue);
+        }
+        .stats {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            margin-top: 20px;
+        }
+        .stat, .card, .module {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+        }
+        .stat { padding: 16px; }
+        .stat strong { display: block; font-size: 24px; }
+        main { padding: 22px 0 44px; }
+        .grid {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        }
+        .module { padding: 18px; }
+        .module h2 { margin: 0 0 8px; font-size: 18px; }
+        .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+        .chip {
+            border: 1px solid var(--line);
+            background: #f8fafc;
+            border-radius: 999px;
+            padding: 4px 9px;
+            font-size: 12px;
+            color: #334155;
+        }
+        .models {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 14px;
+            margin-top: 18px;
+        }
+        .card { padding: 16px; }
+        .card h3 { margin: 0 0 10px; font-size: 16px; }
+        .methods {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .method {
+            border-radius: 6px;
+            background: #eef2ff;
+            color: #3730a3;
+            padding: 3px 7px;
+            font-size: 12px;
+        }
+        .empty { color: var(--muted); font-size: 13px; }
+        .section-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 30px 0 14px;
+        }
+        .section-title h2 { margin: 0; }
+        .hidden { display: none !important; }
+        footer { color: var(--muted); padding-bottom: 34px; }
+        @media (min-width: 760px) {
+            .header-row {
+                grid-template-columns: 1fr 360px;
+                align-items: end;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="wrap">
+            <div class="header-row">
+                <div>
+                    <span class="badge">Model Map</span>
+                    <h1>JJM Brain HRMS Models</h1>
+                    <p class="muted">Searchable overview of model scaffolds, modules, relationships, and public relationship methods.</p>
+                </div>
+                <label>
+                    <span class="muted">Search models, modules, methods</span>
+                    <input id="search" type="search" placeholder="Try Employee, payroll, documents...">
+                </label>
+            </div>
+            <div class="warning">
+                These are scaffold models, not final full production models. Migrations, policies, validation, and business logic still need to be designed module by module.
+            </div>
+            <div class="stats">
+                <div class="stat"><strong id="modelCount">0</strong><span class="muted">Models</span></div>
+                <div class="stat"><strong id="moduleCount">0</strong><span class="muted">Modules</span></div>
+                <div class="stat"><strong id="methodCount">0</strong><span class="muted">Public methods</span></div>
+            </div>
+        </div>
+    </header>
+
+    <main class="wrap">
+        <section>
+            <div class="section-title">
+                <h2>Modules</h2>
+            </div>
+            <div id="modules" class="grid"></div>
+        </section>
+
+        <section>
+            <div class="section-title">
+                <h2>Models</h2>
+                <span id="resultCount" class="muted"></span>
+            </div>
+            <div id="models" class="models"></div>
+        </section>
+    </main>
+
+    <footer class="wrap">
+        Generated for project planning. Update this file when model names or relationships change.
+    </footer>
+
+    <script>
+        const modules = [
+            { name: "Super Master & Access", models: ["User", "OrgUnit", "DepartmentStream", "EmploymentType", "HrScopeAssignment", "EmployeeManagerAssignment"] },
+            { name: "Employee Core", models: ["Employee", "EmployeeContact", "EmployeeFamilyMember", "EmployeeQualification", "EmployeeExperience", "Cadre", "Designation"] },
+            { name: "Documents", models: ["DocumentType", "Document", "DocumentAccessLog"] },
+            { name: "Attendance", models: ["Shift", "Roster", "AttendanceLog", "AttendanceCorrectionRequest"] },
+            { name: "Leave", models: ["LeaveType", "LeavePolicy", "LeaveBalance", "LeaveApplication", "LeaveApplicationDay", "LeaveCancellation", "CompensatoryOffCredit", "Holiday"] },
+            { name: "Payroll", models: ["PayMatrix", "PayLevel", "SalaryStructure", "SalaryComponent", "EmployeeSalaryComponent", "PayrollBatch", "PayrollItem", "PayrollItemComponent", "Payslip", "LoanDeduction", "Arrear", "SalaryRevision"] },
+            { name: "Service Book & Transfers", models: ["ServiceBook", "ServiceBookEntry", "TransferRequest", "TransferOrder", "RelievingRecord", "JoiningRecord", "PostingHistory"] },
+            { name: "Workflow", models: ["WorkflowDefinition", "WorkflowStep", "WorkflowInstance", "WorkflowAction"] },
+            { name: "Assets", models: ["AssetCategory", "Asset", "AssetAllocation", "AssetTransfer", "AssetReturn", "AssetRepair"] },
+            { name: "Grievances", models: ["GrievanceCategory", "Grievance", "GrievanceNote", "GrievanceAttachment", "GrievanceEscalation"] },
+            { name: "Recruitment", models: ["Vacancy", "Candidate", "CandidateApplication", "RecruitmentStage", "ApplicationStageResult", "InterviewSchedule", "MeritList", "MeritListItem", "OfferLetter", "JoiningRequest"] },
+            { name: "Performance", models: ["PerformanceCycle", "EmployeeGoal", "PerformanceReview", "PerformanceGrade", "PromotionRecommendation"] },
+            { name: "Training", models: ["TrainingCourse", "TrainingProgram", "TrainingBatch", "TrainingEnrollment", "TrainingAssessment", "TrainingCertificate"] },
+            { name: "Notifications & Integration", models: ["NotificationTemplate", "NotificationLog", "UserNotification", "NotificationPreference", "AuditLog", "ApiRequestLog", "IntegrationSetting", "IntegrationLog", "ReportExport"] },
+        ];
+
+        const models = [
+            ["ApiRequestLog", ["user"]], ["ApplicationStageResult", ["candidateApplication", "recruitmentStage"]], ["Arrear", ["employee"]],
+            ["Asset", ["assetCategory", "allocations", "transfers", "returns", "repairs"]], ["AssetAllocation", ["asset", "employee", "allocatedBy"]],
+            ["AssetCategory", ["assets"]], ["AssetRepair", ["asset"]], ["AssetReturn", ["asset", "employee"]],
+            ["AssetTransfer", ["asset", "fromEmployee", "toEmployee"]], ["AttendanceCorrectionRequest", ["employee", "attendanceLog", "approvedBy"]],
+            ["AttendanceLog", ["employee", "correctionRequests"]], ["AuditLog", ["actor", "auditable"]], ["Cadre", ["designations"]],
+            ["Candidate", ["applications", "documents"]], ["CandidateApplication", ["candidate", "vacancy", "stageResults", "interviewSchedules", "offerLetter", "joiningRequest"]],
+            ["CompensatoryOffCredit", ["employee"]], ["DepartmentStream", ["hrScopeAssignments", "employees"]],
+            ["Designation", ["cadre", "departmentStream", "employees"]], ["DeviceSession", ["user"]],
+            ["Document", ["documentable", "documentType", "uploadedBy", "verifiedBy", "accessLogs"]],
+            ["DocumentAccessLog", ["document", "user"]], ["DocumentType", ["documents"]],
+            ["Employee", ["user", "orgUnit", "departmentStream", "employmentType", "designation", "contacts", "familyMembers", "qualifications", "experiences", "documents", "attendanceLogs", "leaveApplications", "leaveBalances", "payrollItems", "serviceBook", "transferRequests", "postingHistories", "assetAllocations", "grievances", "salaryStructures", "loanDeductions", "arrears", "salaryRevisions", "trainingEnrollments", "compensatoryOffCredits", "goals"]],
+            ["EmployeeContact", ["employee"]], ["EmployeeExperience", ["employee", "document"]], ["EmployeeFamilyMember", ["employee"]],
+            ["EmployeeGoal", ["employee", "performanceCycle", "review"]], ["EmployeeManagerAssignment", ["user", "employee", "assignedBy"]],
+            ["EmployeeQualification", ["employee", "document"]], ["EmployeeSalaryComponent", ["salaryStructure", "salaryComponent"]],
+            ["EmploymentType", ["hrScopeAssignments", "employees"]],
+            ["Grievance", ["employee", "grievanceCategory", "assignedTo", "notes", "attachments", "escalations"]],
+            ["GrievanceAttachment", ["grievance", "document"]], ["GrievanceCategory", ["grievances"]],
+            ["GrievanceEscalation", ["grievance", "escalatedTo"]], ["GrievanceNote", ["grievance", "createdBy"]],
+            ["Holiday", []], ["HrScopeAssignment", ["user", "orgUnit", "departmentStream", "employmentType"]],
+            ["IntegrationLog", []], ["IntegrationSetting", []], ["InterviewSchedule", ["candidateApplication"]],
+            ["JoiningRecord", ["transferRequest", "joinedBy"]], ["JoiningRequest", ["candidateApplication", "employee"]],
+            ["LeaveApplication", ["employee", "leaveType", "approvedBy", "days", "cancellations"]],
+            ["LeaveApplicationDay", ["leaveApplication"]], ["LeaveBalance", ["employee", "leaveType"]],
+            ["LeaveCancellation", ["leaveApplication", "requestedBy", "approvedBy"]], ["LeavePolicy", ["leaveType", "employmentType"]],
+            ["LeaveType", ["leaveBalances", "leaveApplications", "policies"]], ["LoanDeduction", ["employee"]],
+            ["LoginHistory", ["user"]], ["MeritList", ["vacancy", "items"]], ["MeritListItem", ["meritList", "candidateApplication"]],
+            ["NotificationLog", ["notificationTemplate", "notifiable"]], ["NotificationPreference", ["user"]],
+            ["NotificationTemplate", ["logs"]], ["OfferLetter", ["candidateApplication", "document"]],
+            ["OrgUnit", ["parent", "children", "hrScopeAssignments", "employees"]], ["OtpToken", ["user"]],
+            ["PayLevel", ["payMatrix", "salaryStructures"]], ["PayMatrix", ["payLevels"]],
+            ["PayrollBatch", ["generatedBy", "approvedBy", "items"]], ["PayrollItem", ["payrollBatch", "employee", "components", "payslip"]],
+            ["PayrollItemComponent", ["payrollItem", "salaryComponent"]], ["Payslip", ["payrollItem", "document"]],
+            ["PerformanceCycle", ["goals"]], ["PerformanceGrade", ["reviews"]],
+            ["PerformanceReview", ["employeeGoal", "performanceGrade", "reviewedBy"]],
+            ["PostingHistory", ["employee", "orgUnit"]], ["PromotionRecommendation", ["employee", "recommendedBy", "approvedBy"]],
+            ["RecruitmentStage", ["results"]], ["RelievingRecord", ["transferRequest", "relievedBy"]],
+            ["ReportExport", ["requestedBy"]], ["Roster", ["employee", "shift"]],
+            ["SalaryComponent", ["employeeSalaryComponents", "payrollItemComponents"]],
+            ["SalaryRevision", ["employee", "approvedBy"]], ["SalaryStructure", ["employee", "payLevel", "employeeSalaryComponents"]],
+            ["ServiceBook", ["employee", "entries"]], ["ServiceBookEntry", ["serviceBook", "document", "createdBy", "verifiedBy"]],
+            ["Shift", ["rosters"]], ["TrainingAssessment", ["trainingEnrollment"]],
+            ["TrainingBatch", ["trainingProgram", "enrollments"]], ["TrainingCertificate", ["trainingEnrollment", "document"]],
+            ["TrainingCourse", ["programs"]], ["TrainingEnrollment", ["trainingProgram", "employee", "trainingBatch"]],
+            ["TrainingProgram", ["enrollments", "trainingCourse", "batches"]],
+            ["TransferOrder", ["transferRequest", "document"]],
+            ["TransferRequest", ["employee", "fromOrgUnit", "toOrgUnit", "initiatedBy", "order", "relievingRecord", "joiningRecord"]],
+            ["User", ["canAccessPanel", "hrScopeAssignments", "employee", "employeeManagerAssignments", "loginHistories", "deviceSessions", "notifications"]],
+            ["UserNotification", ["user"]], ["Vacancy", ["orgUnit", "applications", "meritLists"]],
+            ["WorkflowAction", ["workflowInstance", "workflowStep", "actedBy"]],
+            ["WorkflowDefinition", ["steps", "instances"]],
+            ["WorkflowInstance", ["workflowable", "workflowDefinition", "currentStep", "actions"]],
+            ["WorkflowStep", ["workflowDefinition", "actions"]],
+        ];
+
+        const moduleBox = document.getElementById("modules");
+        const modelBox = document.getElementById("models");
+        const search = document.getElementById("search");
+        const resultCount = document.getElementById("resultCount");
+
+        document.getElementById("modelCount").textContent = models.length;
+        document.getElementById("moduleCount").textContent = modules.length;
+        document.getElementById("methodCount").textContent = models.reduce((sum, model) => sum + model[1].length, 0);
+
+        function render(query = "") {
+            const q = query.trim().toLowerCase();
+
+            moduleBox.innerHTML = "";
+            modules
+                .filter(module => !q || module.name.toLowerCase().includes(q) || module.models.some(model => model.toLowerCase().includes(q)))
+                .forEach(module => {
+                    const el = document.createElement("article");
+                    el.className = "module";
+                    el.innerHTML = `<h2>${module.name}</h2><p class="muted">${module.models.length} models</p><div class="chips">${module.models.map(model => `<span class="chip">${model}</span>`).join("")}</div>`;
+                    moduleBox.appendChild(el);
+                });
+
+            const filtered = models.filter(([name, methods]) => {
+                return !q || name.toLowerCase().includes(q) || methods.some(method => method.toLowerCase().includes(q));
+            });
+
+            modelBox.innerHTML = "";
+            filtered.forEach(([name, methods]) => {
+                const el = document.createElement("article");
+                el.className = "card";
+                const methodMarkup = methods.length
+                    ? methods.map(method => `<span class="method">${method}()</span>`).join("")
+                    : `<span class="empty">No relationship methods yet</span>`;
+                el.innerHTML = `<h3>${name}</h3><div class="methods">${methodMarkup}</div>`;
+                modelBox.appendChild(el);
+            });
+
+            resultCount.textContent = `${filtered.length} shown`;
+        }
+
+        search.addEventListener("input", event => render(event.target.value));
+        render();
+    </script>
+</body>
+</html>
