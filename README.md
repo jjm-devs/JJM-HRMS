@@ -1,593 +1,178 @@
-# JJM Brain HRMS - Project Structure Guide
+# JJM Brain HRMS
+## Human Resource Management System
 
-## 1. Core Rule
+> A comprehensive, role-based HR platform built for modern government and enterprise workforce management — covering the full employee lifecycle from onboarding to payroll.
 
-The project has two separate areas:
-
-```text
-1. Super Master Admin
-   Built with Filament.
-   Used only by Super Admin.
-
-2. HRMS Application
-   Built with normal Laravel, Blade, Livewire, and Tailwind.
-   Used by HR users and employees.
-```
-
-Filament should only be used for the Super Master configuration panel.
-
-Do not use Filament for HR or employee working screens.
+| 3 User Roles | 10+ Core Modules | Full Lifecycle Coverage |
+|:---:|:---:|:---:|
 
 ---
 
-## 2. Main URLs
+## What is JJM Brain HRMS?
 
-```text
-/admin                Super Master Admin Panel
-/                     Shared login page
-/dashboard            HR dashboard
-/employee/dashboard   Employee dashboard
-```
+JJM Brain HRMS is a multi-role, scope-aware HR system designed to handle the complete employee lifecycle — from onboarding and attendance to payroll and service records — across complex organizational hierarchies.
 
-Access rules:
+The system is divided into three clearly separated areas:
 
-```text
-users.is_admin = true
-  Can access /admin
+### ⚙ Super Master Admin
+Configures the entire system — org units, users, master data, HR scope assignments. Built with **Filament**. Used exclusively by Super Admin.
 
-users.is_hr = true
-  Can access /dashboard
+### 🗂 HR Panel
+Day-to-day HR operations — manage employees, approve leave, process payroll, track attendance. Built with **Laravel + Livewire + Blade + Tailwind**.
 
-users.is_admin = false and users.is_hr = false
-  Employee user, can access /employee/dashboard
-```
-
-Super Admin users should log in from `/admin`.
-
-HR users and employees should log in from `/`.
+### 👤 Employee Portal
+Self-service for employees — view payslips, apply for leave, update profile, upload documents. Built with **Laravel + Livewire + Blade + Tailwind**.
 
 ---
 
-## 3. Route Structure
+## User Roles & Access
 
-Keep route files small and separated by user area.
+### Super Admin
+- **Login:** `/admin`
+- **Flag:** `users.is_admin = true`
+- Configure org units & departments
+- Manage all users
+- Assign HR scopes & permissions
+- Set employment types
+- System-wide master data
 
-```text
-routes/
-  web.php          Includes the route files only
-  auth.php         Shared login/logout routes
-  hr.php           HR working routes
-  employee.php     Employee self-service routes
-```
+### HR User
+- **Login:** `/dashboard`
+- **Flag:** `users.is_hr = true`
+- Manage employees in their scope
+- Process attendance & leave
+- Run payroll batches
+- Approve workflows
+- Generate reports
 
-Current responsibility:
-
-```text
-routes/auth.php
-  /
-  /logout
-
-routes/hr.php
-  /dashboard
-
-routes/employee.php
-  /employee/dashboard
-```
-
-When adding new pages:
-
-```text
-HR pages go in routes/hr.php
-Employee pages go in routes/employee.php
-Shared auth pages go in routes/auth.php
-```
+### Employee
+- **Login:** `/employee/dashboard`
+- **Flag:** `is_admin = false`, `is_hr = false`
+- View & update own profile
+- Apply for leave
+- View payslips
+- Upload personal documents
+- Check attendance records
 
 ---
 
-## 4. App Folder Structure
+## Core Modules
 
-Recommended structure:
+| Module | Description |
+|---|---|
+| **Employee Management** | Full employee profiles, contacts, family, qualifications, experience |
+| **Attendance** | Attendance logging, corrections, approvals and reporting |
+| **Leave Management** | Apply, approve, balance tracking across leave types |
+| **Payroll** | Payroll batches, items, payslip generation per employee |
+| **Documents** | Secure document upload and retrieval for employees and HR |
+| **Transfers** | Transfer requests across org units with approval workflows |
+| **Service Book** | Complete service history maintained per employee |
+| **Workflows** | Configurable approval chains for leave, attendance, transfers |
+| **Reports** | HR-level reports across attendance, payroll, headcount |
 
-```text
-app/
-  Filament/
-    Resources/
-    Pages/
-    Widgets/
+---
 
-  Http/
-    Controllers/
-      Hr/
-      Employee/
-    Middleware/
+## Employee Lifecycle
 
-  Livewire/
-    Auth/
-    Hr/
-    Employee/
+JJM Brain HRMS covers every stage of the employee journey — within a single system, with no data silos.
 
-  Models/
+```
+[ 01 Onboarding ] → [ 02 Daily Operations ] → [ 03 Payroll ] → [ 04 Growth ] → [ 05 Offboarding ]
+```
 
-  Services/
-    Hr/
-    Employees/
-    Attendance/
-    Leave/
-    Payroll/
-    Documents/
-    Workflows/
+| Stage | What's Covered |
+|---|---|
+| **01 · Onboarding** | Profile creation, document upload, org unit assignment |
+| **02 · Daily Operations** | Attendance logging, leave applications, corrections |
+| **03 · Payroll** | Monthly batch processing, payslip generation |
+| **04 · Growth** | Transfers, promotions, service book updates |
+| **05 · Offboarding** | Final records, complete service book archival |
 
-  Actions/
-    Employees/
-    Attendance/
-    Leave/
-    Payroll/
-    Documents/
+---
 
-  Enums/
+## Smart HR Scope System
 
-  Support/
-    Access/
-    Codes/
+HR users don't see all employees — they only see employees within their assigned scope. This makes JJM Brain HRMS suitable for complex, multi-department, multi-location organisations.
+
+### Scope Dimensions
+
+| Dimension | Description |
+|---|---|
+| **Org Unit** | HR is scoped to one or more org units |
+| **Child Units** | Optionally include all sub-units under the assigned org (`include_child_units = true`) |
+| **Dept Stream** | Further filter by department stream |
+| **Emp. Type** | Filter by employment type (permanent, contract, etc.) |
+
+### Per-Scope Permissions
+
+Each HR scope assignment carries granular permission flags:
+
+```
+can_view  ·  can_create  ·  can_update  ·  can_delete  ·  can_approve
 ```
 
 ---
 
-## 5. Filament Structure
+## Key Features
 
-Filament is only for the Super Master Admin Panel.
+### 🏢 Multi-Level Org Hierarchy
+Supports nested org units with parent-child relationships for large, complex organisations.
 
-Current path:
+### 🔒 Scope-Based Access
+HR staff only access the employees they are explicitly scoped to — no data leakage between departments or regions.
 
-```text
-app/Filament/Resources/
-  DepartmentStreams/
-  EmploymentTypes/
-  HrScopeAssignments/
-  OrgUnits/
-  Users/
-```
+### 📋 Full Audit Trail
+Every action is logged — who did what, when, on which employee record.
 
-Use Filament for:
+### ⚡ Real-Time Livewire UI
+Interactive screens without page reloads — fast, responsive HR operations throughout the system.
 
-```text
-Organization Units
-Department Streams
-Employment Types
-Users
-HR Scope Assignments
-System master data
-System configuration
-```
+### 📊 Payroll Engine
+Batch payroll processing with individual payslip generation per employee per pay cycle.
 
-Do not use Filament for:
-
-```text
-HR employee management
-Employee self-service
-Attendance operations
-Leave applications
-Payroll operations
-Document upload screens
-```
-
-Those should be normal Laravel/Livewire pages.
+### 🔄 Approval Workflows
+Configurable multi-step workflows for leave applications, attendance corrections, and transfers.
 
 ---
 
-## 6. Livewire Structure
+## Technology Stack
 
-Livewire components should be grouped by user area and module.
-
-Recommended:
-
-```text
-app/Livewire/
-  Auth/
-    Login.php
-
-  Hr/
-    Employees/
-      ListEmployees.php
-      CreateEmployee.php
-      EditEmployee.php
-    Attendance/
-    Leave/
-    Payroll/
-    Documents/
-    Transfers/
-    Reports/
-
-  Employee/
-    Profile/
-    Attendance/
-    Leave/
-    Documents/
-    Payslips/
-```
-
-Matching Blade views:
-
-```text
-resources/views/livewire/
-  auth/
-    login.blade.php
-
-  hr/
-    employees/
-    attendance/
-    leave/
-    payroll/
-    documents/
-
-  employee/
-    profile/
-    attendance/
-    leave/
-    documents/
-```
-
-Rule:
-
-```text
-If the screen is interactive, use Livewire.
-If the screen is only a simple static page, use a normal Blade view.
-```
+| Layer | Technologies |
+|---|---|
+| **Backend** | Laravel (PHP), Eloquent ORM, Service + Action pattern |
+| **Frontend / UI** | Blade Templates, Livewire (reactive), Tailwind CSS |
+| **Admin Panel** | Filament (Super Admin only), resource management, master data config |
+| **Database** | MySQL / PostgreSQL, migration-based schema, seeded master data |
 
 ---
 
-## 7. View Structure
+## Who Is This For?
 
-Recommended:
+JJM Brain HRMS is ideal for organisations that need fine-grained HR control across multiple units, teams, and employment categories.
 
-```text
-resources/views/
-  components/
-    layouts/
-      app.blade.php
-    ui/
+### Government Departments
+- Multiple org units / directorates
+- Mixed employment types (permanent, contractual, deputation)
+- Strict access segregation between HR officers
 
-  auth/
-    login.blade.php
+### Large Enterprises
+- Hundreds to thousands of employees
+- Multiple HR managers with different scopes
+- Centralised payroll with department-level leave management
 
-  hr/
-    dashboard.blade.php
-    employees/
-    attendance/
-    leave/
-    payroll/
-    documents/
-    transfers/
-    reports/
-
-  employee/
-    dashboard.blade.php
-    profile/
-    attendance/
-    leave/
-    documents/
-    payslips/
-
-  livewire/
-    auth/
-    hr/
-    employee/
-```
-
-Layout rule:
-
-```text
-Use resources/views/components/layouts/app.blade.php as the shared base layout.
-Later, create separate HR/Employee layouts only if the UI becomes different enough.
-```
+### Multi-Location Organisations
+- Regional offices with local HR teams
+- Org hierarchy with child unit support
+- Central Super Admin with local HR control
 
 ---
 
-## 8. Models
+## Summary
 
-Models live in:
+> **One System. Every HR Need.**
 
-```text
-app/Models/
-```
+JJM Brain HRMS brings together employee management, attendance, leave, payroll, documents, and workflows — in a single, secure, scope-controlled platform built for real-world HR complexity.
 
-Current foundation models:
-
-```text
-User.php
-OrgUnit.php
-DepartmentStream.php
-EmploymentType.php
-HrScopeAssignment.php
-EmployeeManagerAssignment.php
-```
-
-Future models:
-
-```text
-Employee.php
-EmployeeContact.php
-EmployeeFamilyMember.php
-EmployeeQualification.php
-EmployeeExperience.php
-AttendanceLog.php
-LeaveApplication.php
-Document.php
-PayrollBatch.php
-PayrollItem.php
-ServiceBook.php
-TransferRequest.php
-```
-
-Rule:
-
-```text
-Models should contain relationships, casts, scopes, and simple model helpers.
-Large business logic should go into Services or Actions.
-```
-
----
-
-## 9. Services
-
-Services should contain business logic that may be reused by multiple controllers or Livewire components.
-
-Recommended:
-
-```text
-app/Services/
-  Hr/
-    EmployeeAccessService.php
-
-  Employees/
-    EmployeeProfileService.php
-    EmployeeCodeService.php
-
-  Attendance/
-    AttendanceCalculationService.php
-
-  Leave/
-    LeaveBalanceService.php
-    LeaveApprovalService.php
-
-  Payroll/
-    PayrollCalculationService.php
-
-  Documents/
-    DocumentStorageService.php
-
-  Workflows/
-    WorkflowService.php
-```
-
-Example:
-
-```text
-EmployeeAccessService
-  Decides which employees an HR user can view/create/update/approve.
-```
-
----
-
-## 10. Actions
-
-Actions should contain one focused operation.
-
-Recommended:
-
-```text
-app/Actions/
-  Employees/
-    CreateEmployee.php
-    UpdateEmployee.php
-
-  Leave/
-    SubmitLeaveApplication.php
-    ApproveLeaveApplication.php
-
-  Attendance/
-    MarkAttendance.php
-    ApproveAttendanceCorrection.php
-```
-
-Rule:
-
-```text
-Use Actions when a task has clear steps and may be called from different places.
-```
-
-Example:
-
-```text
-CreateEmployee.php
-  Validate final data
-  Create user if needed
-  Create employee profile
-  Assign org unit
-  Attach documents if needed
-  Write audit log later
-```
-
----
-
-## 11. Middleware
-
-Current middleware:
-
-```text
-app/Http/Middleware/
-  EnsureHrUser.php
-  EnsureEmployeeUser.php
-```
-
-Use middleware for area-level access:
-
-```text
-EnsureHrUser
-  Protects HR dashboard and HR routes.
-
-EnsureEmployeeUser
-  Protects employee dashboard and employee routes.
-```
-
-Detailed data access should not be handled only by middleware.
-
-Data access should use:
-
-```text
-HR scope assignments
-Services
-Policies later
-```
-
----
-
-## 12. Database Structure
-
-Migrations remain in:
-
-```text
-database/migrations/
-```
-
-For now Laravel's normal migration folder is fine.
-
-As the project grows, use clear migration names:
-
-```text
-create_employees_table
-create_employee_contacts_table
-create_attendance_logs_table
-create_leave_applications_table
-create_documents_table
-```
-
-Seeders:
-
-```text
-database/seeders/
-  DatabaseSeeder.php
-  OrgUnitSeeder.php
-```
-
-Recommended future seeders:
-
-```text
-UserSeeder.php
-MasterDataSeeder.php
-LeaveTypeSeeder.php
-DesignationSeeder.php
-```
-
----
-
-## 13. HR Scope Rule
-
-HR access should be based on:
-
-```text
-Organization scope
-Department stream
-Employment type
-Explicit employee assignment
-```
-
-Current foundation:
-
-```text
-hr_scope_assignments
-  user_id
-  org_unit_id
-  include_child_units
-  department_stream_id
-  employment_type_id
-  can_view
-  can_create
-  can_update
-  can_delete
-  can_approve
-```
-
-Meaning:
-
-```text
-include_child_units = false
-  HR can manage only the exact selected org unit.
-
-include_child_units = true
-  HR can manage the selected org unit and all child org units.
-```
-
-Employee access should eventually be resolved by:
-
-```text
-app/Services/Hr/EmployeeAccessService.php
-```
-
----
-
-## 14. Naming Rules
-
-Use clear names.
-
-Good:
-
-```text
-Hr/Employees/CreateEmployee.php
-Employee/Profile/ViewProfile.php
-Services/Hr/EmployeeAccessService.php
-Actions/Employees/CreateEmployee.php
-```
-
-Avoid:
-
-```text
-DataManager.php
-Helper.php
-CommonService.php
-ProcessController.php
-```
-
----
-
-## 15. Build Order
-
-Recommended next build order:
-
-```text
-1. Employee database tables
-2. Employee model relationships
-3. HR employee list page
-4. HR create employee page
-5. Employee dashboard connected to employee profile
-6. HR scope filtering
-7. Document upload
-8. Leave module
-9. Attendance module
-10. Payroll module
-```
-
----
-
-## 16. Current Philosophy
-
-Keep Super Master configuration and daily HR work separate.
-
-```text
-Super Master Admin:
-  Configure the system.
-
-HR Panel:
-  Operate the system.
-
-Employee Panel:
-  Self-service.
-```
-
-Keep business logic out of Blade files.
-
-Keep Livewire components focused on screen interaction.
-
-Keep reusable business rules in services/actions.
-
-Keep access control explicit and easy to test.
+| Role-Based Access | Scope-Aware HR | Full Lifecycle |
+|:---:|:---:|:---:|
+| **Audit Logged** | **Real-Time UI** | **10+ Modules** |
