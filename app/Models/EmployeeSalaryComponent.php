@@ -14,7 +14,9 @@ class EmployeeSalaryComponent extends Model
         'salary_structure_id',
         'salary_component_id',
         'amount',
+        'percentage_rate',
         'calculation_type',
+        'calculation_base',
         'formula',
         'status',
     ];
@@ -23,6 +25,7 @@ class EmployeeSalaryComponent extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'percentage_rate' => 'decimal:2',
         ];
     }
 

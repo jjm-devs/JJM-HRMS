@@ -297,140 +297,223 @@
 
             @php
                 $salaryStructure = $employee->salaryStructures->sortByDesc('id')->first();
+                $salaryComponents = $salaryStructure
+                    ? $salaryStructure->employeeSalaryComponents->sortByDesc('id')
+                    : collect();
+                $totalEarnings = $salaryComponents
+                    ->filter(fn ($item) => $item->salaryComponent?->type !== 'deduction' && ! $item->salaryComponent?->is_deduction)
+                    ->sum(fn ($item) => (float) $item->amount);
+                $hasBasicSalaryComponent = $salaryComponents
+                    ->contains(fn ($item) => $item->salaryComponent?->code === 'BASIC' || str_contains(strtolower((string) $item->salaryComponent?->name), 'basic'));
+                if ($salaryStructure && ! $hasBasicSalaryComponent) {
+                    $totalEarnings += (float) $salaryStructure->basic_salary;
+                }
+                $totalDeductions = $salaryComponents
+                    ->filter(fn ($item) => $item->salaryComponent?->type === 'deduction' || $item->salaryComponent?->is_deduction)
+                    ->sum(fn ($item) => (float) $item->amount);
             @endphp
 
-            <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
-                <div class="space-y-5">
-                    <x-ui.card title="Current Salary Details">
-                        @if ($salaryStructure)
-                            <dl class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                                <div>
-                                    <dt class="text-xs font-medium uppercase tracking-wide text-slate-500">Pay Level</dt>
-                                    <dd class="mt-1 text-sm font-medium text-slate-900">
-                                        {{ $salaryStructure->payLevel?->name ?? '-' }}
-                                    </dd>
-                                </div>
-                                <div>
-                                    <dt class="text-xs font-medium uppercase tracking-wide text-slate-500">Basic Salary</dt>
-                                    <dd class="mt-1 text-sm font-medium text-slate-900">
-                                        {{ number_format((float) $salaryStructure->basic_salary, 2) }}
-                                    </dd>
-                                </div>
-                                <div>
-                                    <dt class="text-xs font-medium uppercase tracking-wide text-slate-500">Grade Pay</dt>
-                                    <dd class="mt-1 text-sm font-medium text-slate-900">
-                                        {{ $salaryStructure->grade_pay !== null ? number_format((float) $salaryStructure->grade_pay, 2) : '-' }}
-                                    </dd>
-                                </div>
-                                <div>
-                                    <dt class="text-xs font-medium uppercase tracking-wide text-slate-500">Effective From</dt>
-                                    <dd class="mt-1 text-sm font-medium text-slate-900">
-                                        {{ $salaryStructure->effective_from?->format('d M Y') ?? '-' }}
-                                    </dd>
-                                </div>
-                                <div>
-                                    <dt class="text-xs font-medium uppercase tracking-wide text-slate-500">Effective To</dt>
-                                    <dd class="mt-1 text-sm font-medium text-slate-900">
-                                        {{ $salaryStructure->effective_to?->format('d M Y') ?? '-' }}
-                                    </dd>
-                                </div>
-                                <div>
-                                    <dt class="text-xs font-medium uppercase tracking-wide text-slate-500">Status</dt>
-                                    <dd class="mt-1">
-                                        <x-ui.badge :variant="$salaryStructure->status === 'active' ? 'success' : 'default'">
-                                            {{ $salaryStatusOptions[$salaryStructure->status] ?? ucfirst($salaryStructure->status) }}
-                                        </x-ui.badge>
-                                    </dd>
-                                </div>
-                            </dl>
-                        @else
-                            <x-ui.empty-state
-                                title="No salary details added"
-                                description="Add the employee pay level, basic salary, grade pay, and effective dates."
-                            />
-                        @endif
-                    </x-ui.card>
+            @if (session('salary_component_status'))
+                <x-ui.alert variant="success">{{ session('salary_component_status') }}</x-ui.alert>
+            @endif
 
-                    <x-ui.table :headers="['Pay Level', 'Basic', 'Grade Pay', 'Effective', 'Status']">
-                        @forelse ($employee->salaryStructures->sortByDesc('id') as $structure)
+            <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
+                <x-ui.card title="Salary Components">
+                    <div class="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        <div>
+                            <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Pay Level</p>
+                            <p class="mt-1 text-sm font-medium text-slate-900">{{ $salaryStructure?->payLevel?->name ?? '-' }}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Effective</p>
+                            <p class="mt-1 text-sm font-medium text-slate-900">
+                                {{ $salaryStructure?->effective_from?->format('d M Y') ?? '-' }}
+                                <span class="text-slate-400">to</span>
+                                {{ $salaryStructure?->effective_to?->format('d M Y') ?? 'Present' }}
+                            </p>
+                        </div>
+                        <div>
+                            <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Gross Earnings</p>
+                            <p class="mt-1 text-sm font-medium text-slate-900">{{ number_format($totalEarnings, 2) }}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Net Pay</p>
+                            <p class="mt-1 text-sm font-medium text-slate-900">{{ number_format($totalEarnings - $totalDeductions, 2) }}</p>
+                        </div>
+                    </div>
+
+                    <x-ui.table :headers="['Component', 'Type', 'Calculation', 'Amount', 'Status', '']">
+                        @forelse ($salaryComponents as $salaryComponentItem)
+                            @php
+                                $componentType = $salaryComponentItem->salaryComponent?->type;
+                                $isDeduction = $componentType === 'deduction' || $salaryComponentItem->salaryComponent?->is_deduction;
+                                $typeVariant = $isDeduction ? 'warning' : 'success';
+                            @endphp
+
                             <tr class="transition hover:bg-slate-50">
-                                <x-ui.table.td>{{ $structure->payLevel?->name ?? '-' }}</x-ui.table.td>
-                                <x-ui.table.td>{{ number_format((float) $structure->basic_salary, 2) }}</x-ui.table.td>
-                                <x-ui.table.td>{{ $structure->grade_pay !== null ? number_format((float) $structure->grade_pay, 2) : '-' }}</x-ui.table.td>
                                 <x-ui.table.td>
-                                    {{ $structure->effective_from?->format('d M Y') ?? '-' }}
-                                    <span class="text-slate-400">to</span>
-                                    {{ $structure->effective_to?->format('d M Y') ?? 'Present' }}
+                                    <span class="font-medium text-slate-900">{{ $salaryComponentItem->salaryComponent?->name ?? '-' }}</span>
+                                    <p class="text-xs text-slate-400">{{ $salaryComponentItem->salaryComponent?->code ?? '-' }}</p>
+                                    @if (($salaryComponentItem->salaryComponent?->code === 'BASIC' || str_contains(strtolower((string) $salaryComponentItem->salaryComponent?->name), 'basic')) && $salaryStructure?->grade_pay !== null)
+                                        <p class="mt-1 text-xs text-slate-500">Grade Pay: {{ number_format((float) $salaryStructure->grade_pay, 2) }}</p>
+                                    @endif
                                 </x-ui.table.td>
                                 <x-ui.table.td>
-                                    <x-ui.badge :variant="$structure->status === 'active' ? 'success' : 'default'">
-                                        {{ $salaryStatusOptions[$structure->status] ?? ucfirst($structure->status) }}
+                                    @if ($componentType)
+                                        <x-ui.badge :variant="$typeVariant">{{ ucfirst($componentType) }}</x-ui.badge>
+                                    @else
+                                        <span class="text-slate-400">-</span>
+                                    @endif
+                                </x-ui.table.td>
+                                <x-ui.table.td>
+                                    <span>{{ ucfirst($salaryComponentItem->calculation_type) }}</span>
+                                    @if ($salaryComponentItem->calculation_type === 'percentage')
+                                        <p class="mt-1 text-xs text-slate-400">
+                                            {{ number_format((float) $salaryComponentItem->percentage_rate, 2) }}%
+                                            on {{ $calculationBaseOptions[$salaryComponentItem->calculation_base] ?? 'selected base' }}
+                                        </p>
+                                    @endif
+                                    @if ($salaryComponentItem->formula)
+                                        <p class="mt-1 max-w-xs truncate text-xs text-slate-400">{{ $salaryComponentItem->formula }}</p>
+                                    @endif
+                                </x-ui.table.td>
+                                <x-ui.table.td>{{ number_format((float) $salaryComponentItem->amount, 2) }}</x-ui.table.td>
+                                <x-ui.table.td>
+                                    <x-ui.badge :variant="$salaryComponentItem->status === 'active' ? 'success' : 'default'">
+                                        {{ $salaryStatusOptions[$salaryComponentItem->status] ?? ucfirst($salaryComponentItem->status) }}
                                     </x-ui.badge>
+                                </x-ui.table.td>
+                                <x-ui.table.td>
+                                    <div class="flex items-center gap-1">
+                                        <x-ui.button wire:click="editSalaryComponent({{ $salaryComponentItem->id }})" variant="ghost" size="sm">Edit</x-ui.button>
+                                        <x-ui.button wire:click="deleteSalaryComponent({{ $salaryComponentItem->id }})" variant="ghost" size="sm">Delete</x-ui.button>
+                                    </div>
                                 </x-ui.table.td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5">
+                                <td colspan="6">
                                     <x-ui.empty-state
-                                        title="No salary history"
-                                        description="Salary structure records will appear here."
+                                        title="No salary components"
+                                        description="Select Basic Salary first, then add allowances, deductions, and tax components."
                                     />
                                 </td>
                             </tr>
                         @endforelse
                     </x-ui.table>
-                </div>
+                </x-ui.card>
 
-                <x-ui.card title="Update Salary">
-                    <form wire:submit="saveSalary" class="space-y-4">
+                <x-ui.card :title="$editingSalaryComponentId ? 'Edit Salary Component' : 'Add Salary Component'">
+                    <form wire:submit="saveSalaryComponent" class="space-y-4">
                         <x-ui.select
-                            wire:model="salaryForm.pay_level_id"
+                            wire:model="salaryComponentForm.pay_level_id"
                             label="Pay Level"
                             :options="$payLevelOptions"
-                            :error="$errors->first('salaryForm.pay_level_id')"
+                            :error="$errors->first('salaryComponentForm.pay_level_id')"
                         />
 
-                        <x-ui.input
-                            wire:model="salaryForm.basic_salary"
-                            type="number"
-                            step="0.01"
-                            label="Basic Salary"
-                            :error="$errors->first('salaryForm.basic_salary')"
+                        <div class="grid gap-4 sm:grid-cols-2">
+                            <x-ui.input
+                                wire:model="salaryComponentForm.effective_from"
+                                type="date"
+                                label="Effective From"
+                                :error="$errors->first('salaryComponentForm.effective_from')"
+                            />
+
+                            <x-ui.input
+                                wire:model="salaryComponentForm.effective_to"
+                                type="date"
+                                label="Effective To"
+                                :error="$errors->first('salaryComponentForm.effective_to')"
+                            />
+                        </div>
+
+                        <x-ui.select
+                            wire:model="salaryComponentForm.salary_structure_status"
+                            label="Salary Status"
+                            :options="$salaryStatusOptions"
+                            :error="$errors->first('salaryComponentForm.salary_structure_status')"
                             required
-                        />
-
-                        <x-ui.input
-                            wire:model="salaryForm.grade_pay"
-                            type="number"
-                            step="0.01"
-                            label="Grade Pay"
-                            :error="$errors->first('salaryForm.grade_pay')"
-                        />
-
-                        <x-ui.input
-                            wire:model="salaryForm.effective_from"
-                            type="date"
-                            label="Effective From"
-                            :error="$errors->first('salaryForm.effective_from')"
-                        />
-
-                        <x-ui.input
-                            wire:model="salaryForm.effective_to"
-                            type="date"
-                            label="Effective To"
-                            :error="$errors->first('salaryForm.effective_to')"
                         />
 
                         <x-ui.select
-                            wire:model="salaryForm.status"
-                            label="Status"
-                            :options="$salaryStatusOptions"
-                            :error="$errors->first('salaryForm.status')"
+                            wire:model.live="salaryComponentForm.salary_component_id"
+                            label="Component"
+                            :options="$salaryComponentOptions"
+                            :error="$errors->first('salaryComponentForm.salary_component_id')"
                             required
                         />
 
-                        <div class="flex justify-end">
-                            <x-ui.button type="submit" variant="primary">Save Salary</x-ui.button>
+                        <x-ui.select
+                            wire:model.live="salaryComponentForm.calculation_type"
+                            label="Calculation Type"
+                            :options="$calculationTypeOptions"
+                            :error="$errors->first('salaryComponentForm.calculation_type')"
+                            required
+                        />
+
+                        @if ($selectedCalculationTypeIsPercentage)
+                            <x-ui.input
+                                wire:model="salaryComponentForm.percentage_rate"
+                                type="number"
+                                step="0.01"
+                                label="Percentage"
+                                :error="$errors->first('salaryComponentForm.percentage_rate')"
+                                required
+                            />
+
+                            <x-ui.select
+                                wire:model="salaryComponentForm.calculation_base"
+                                label="Calculate On"
+                                :options="$calculationBaseOptions"
+                                :error="$errors->first('salaryComponentForm.calculation_base')"
+                                required
+                            />
+                        @else
+                            <x-ui.input
+                                wire:model="salaryComponentForm.amount"
+                                type="number"
+                                step="0.01"
+                                label="Amount"
+                                :error="$errors->first('salaryComponentForm.amount')"
+                                required
+                            />
+                        @endif
+
+                        @if ($selectedSalaryComponentIsBasic)
+                            <x-ui.input
+                                wire:model="salaryComponentForm.grade_pay"
+                                type="number"
+                                step="0.01"
+                                label="Grade Pay"
+                                :error="$errors->first('salaryComponentForm.grade_pay')"
+                            />
+                        @endif
+
+                        <x-ui.textarea
+                            wire:model="salaryComponentForm.formula"
+                            label="Formula"
+                            rows="3"
+                            placeholder="Optional formula or notes"
+                            :error="$errors->first('salaryComponentForm.formula')"
+                        />
+
+                        <x-ui.select
+                            wire:model="salaryComponentForm.status"
+                            label="Component Status"
+                            :options="$salaryStatusOptions"
+                            :error="$errors->first('salaryComponentForm.status')"
+                            required
+                        />
+
+                        <div class="flex items-center justify-end gap-2">
+                            @if ($editingSalaryComponentId)
+                                <x-ui.button wire:click="resetSalaryComponentForm" variant="outline">Cancel</x-ui.button>
+                            @endif
+
+                            <x-ui.button type="submit" variant="primary">
+                                {{ $editingSalaryComponentId ? 'Update Component' : 'Add Component' }}
+                            </x-ui.button>
                         </div>
                     </form>
                 </x-ui.card>
