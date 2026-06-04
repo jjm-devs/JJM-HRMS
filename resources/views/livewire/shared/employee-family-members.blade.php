@@ -97,7 +97,7 @@
                         <input
                             wire:model="familyForm.is_dependent"
                             type="checkbox"
-                            class="h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-600"
+                            class="h-4 w-4 border-slate-300 text-blue-700 focus:ring-blue-600"
                         >
                         Dependent
                     </label>
@@ -106,7 +106,7 @@
                         <input
                             wire:model.live="familyForm.is_nominee"
                             type="checkbox"
-                            class="h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-600"
+                            class="h-4 w-4 border-slate-300 text-blue-700 focus:ring-blue-600"
                         >
                         Nominee
                     </label>

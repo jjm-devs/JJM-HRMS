@@ -136,12 +136,13 @@ class Show extends Component
     public function saveSalaryComponent(): void
     {
         $currentSalaryStructure = $this->currentSalaryStructure();
-        $data = $this->validateSalaryComponentForm($currentSalaryStructure?->id);
-        $salaryStructure = $this->saveSalaryStructureFromComponent($data, $currentSalaryStructure);
+        $createsRevision = $this->shouldCreateSalaryRevisionFromForm($currentSalaryStructure);
+        $data = $this->validateSalaryComponentForm($createsRevision ? null : $currentSalaryStructure?->id);
+        $salaryStructure = $this->saveSalaryStructureFromComponent($data, $currentSalaryStructure, $createsRevision);
 
         $componentData = $this->salaryComponentData($data, $salaryStructure);
 
-        if ($this->editingSalaryComponentId) {
+        if ($this->editingSalaryComponentId && ! $createsRevision) {
             $component = $salaryStructure
                 ->employeeSalaryComponents()
                 ->whereKey($this->editingSalaryComponentId)
@@ -150,10 +151,17 @@ class Show extends Component
             $component->update($componentData);
             session()->flash('salary_component_status', 'Salary component updated successfully.');
         } else {
-            $salaryStructure->employeeSalaryComponents()->create($componentData);
-            session()->flash('salary_component_status', 'Salary component added successfully.');
+            $salaryStructure->employeeSalaryComponents()->updateOrCreate(
+                ['salary_component_id' => $componentData['salary_component_id']],
+                $componentData,
+            );
+            session()->flash(
+                'salary_component_status',
+                $createsRevision ? 'Salary revision created successfully.' : 'Salary component added successfully.',
+            );
         }
 
+        $this->recalculatePercentageComponents($salaryStructure);
         $this->employee->load([
             'salaryStructures.employeeSalaryComponents.salaryComponent',
             'salaryStructures.payLevel.payMatrix',
@@ -433,8 +441,11 @@ class Show extends Component
             'contactTypeOptions' => $this->contactTypeOptions(),
             'familyGenderOptions' => $this->familyGenderOptions(),
             'payLevelOptions' => $this->payLevelOptions(),
+            'payrollPreview' => $this->payrollPreview(),
             'relationshipOptions' => $this->relationshipOptions(),
+            'salaryComponents' => $this->salaryComponentsForDisplay(),
             'salaryComponentOptions' => $this->salaryComponentOptions(),
+            'salaryStructure' => $this->currentSalaryStructure(),
             'salaryStatusOptions' => $this->salaryStatusOptions(),
             'selectedCalculationTypeIsPercentage' => $this->selectedCalculationTypeIsPercentage(),
             'selectedSalaryComponentIsBasic' => $this->selectedSalaryComponentIsBasic(),
@@ -503,6 +514,10 @@ class Show extends Component
 
     private function validateSalaryComponentForm(?int $salaryStructureId): array
     {
+        $salaryStructure = $salaryStructureId
+            ? SalaryStructure::query()->find($salaryStructureId)
+            : null;
+
         $salaryComponentIdRules = [
             'required',
             'integer',
@@ -542,6 +557,12 @@ class Show extends Component
             if (blank($validated['calculation_base'])) {
                 throw ValidationException::withMessages([
                     'salaryComponentForm.calculation_base' => 'Select what this percentage should be calculated on.',
+                ]);
+            }
+
+            if ($this->calculationBaseAmount($validated['calculation_base'], $salaryStructure) <= 0) {
+                throw ValidationException::withMessages([
+                    'salaryComponentForm.calculation_base' => 'The selected calculation base has no amount yet. Add Basic Salary or earnings first.',
                 ]);
             }
 
@@ -706,7 +727,7 @@ class Show extends Component
         return 'Jjm@'.Str::upper(Str::random(4)).random_int(1000, 9999);
     }
 
-    private function saveSalaryStructureFromComponent(array $data, ?SalaryStructure $salaryStructure): SalaryStructure
+    private function saveSalaryStructureFromComponent(array $data, ?SalaryStructure $salaryStructure, bool $createsRevision): SalaryStructure
     {
         $salaryStructureData = [
             'pay_level_id' => $data['pay_level_id'],
@@ -725,13 +746,19 @@ class Show extends Component
             $salaryStructureData['grade_pay'] = null;
         }
 
-        if ($salaryStructure) {
+        if ($salaryStructure && ! $createsRevision) {
             $salaryStructure->update($salaryStructureData);
 
             return $salaryStructure->refresh();
         }
 
-        return $this->employee->salaryStructures()->create($salaryStructureData);
+        $newSalaryStructure = $this->employee->salaryStructures()->create($salaryStructureData);
+
+        if ($salaryStructure && $createsRevision) {
+            $this->copySalaryComponents($salaryStructure, $newSalaryStructure);
+        }
+
+        return $newSalaryStructure;
     }
 
     private function salaryComponentData(array $data, SalaryStructure $salaryStructure): array
@@ -745,6 +772,58 @@ class Show extends Component
             'formula' => $data['formula'],
             'status' => $data['status'],
         ];
+    }
+
+    private function shouldCreateSalaryRevisionFromForm(?SalaryStructure $salaryStructure): bool
+    {
+        if (! $salaryStructure) {
+            return false;
+        }
+
+        return $this->normalizedDate($this->salaryComponentForm['effective_from'] ?? null) !== $this->normalizedDate($salaryStructure->effective_from?->format('Y-m-d'))
+            || $this->normalizedDate($this->salaryComponentForm['effective_to'] ?? null) !== $this->normalizedDate($salaryStructure->effective_to?->format('Y-m-d'));
+    }
+
+    private function normalizedDate(?string $date): ?string
+    {
+        return $date === '' ? null : $date;
+    }
+
+    private function copySalaryComponents(SalaryStructure $from, SalaryStructure $to): void
+    {
+        $from->loadMissing('employeeSalaryComponents');
+
+        foreach ($from->employeeSalaryComponents as $component) {
+            $to->employeeSalaryComponents()->create([
+                'salary_component_id' => $component->salary_component_id,
+                'amount' => $component->amount,
+                'percentage_rate' => $component->percentage_rate,
+                'calculation_type' => $component->calculation_type,
+                'calculation_base' => $component->calculation_base,
+                'formula' => $component->formula,
+                'status' => $component->status,
+            ]);
+        }
+    }
+
+    private function recalculatePercentageComponents(SalaryStructure $salaryStructure): void
+    {
+        $salaryStructure->load('employeeSalaryComponents.salaryComponent');
+
+        foreach ($salaryStructure->employeeSalaryComponents as $component) {
+            if ($component->calculation_type !== 'percentage') {
+                continue;
+            }
+
+            $component->update([
+                'amount' => $this->calculateComponentAmount([
+                    'amount' => $component->amount,
+                    'percentage_rate' => $component->percentage_rate,
+                    'calculation_type' => $component->calculation_type,
+                    'calculation_base' => $component->calculation_base,
+                ], $salaryStructure),
+            ]);
+        }
     }
 
     private function calculateComponentAmount(array $data, ?SalaryStructure $salaryStructure): float
@@ -777,7 +856,6 @@ class Show extends Component
         $earningComponents = $salaryStructure
             ->employeeSalaryComponents()
             ->with('salaryComponent')
-            ->when($this->editingSalaryComponentId, fn ($query) => $query->whereKeyNot($this->editingSalaryComponentId))
             ->where('status', 'active')
             ->get();
 
@@ -792,7 +870,158 @@ class Show extends Component
             $total += (float) $salaryStructure->basic_salary;
         }
 
+        $total += (float) $salaryStructure->grade_pay;
+
         return $total;
+    }
+
+    private function payrollPreview(): array
+    {
+        $salaryStructure = $this->currentSalaryStructure();
+
+        if (! $salaryStructure) {
+            return [
+                'earnings' => [],
+                'deductions' => [],
+                'gross' => 0,
+                'deductions_total' => 0,
+                'net' => 0,
+            ];
+        }
+
+        $salaryStructure->loadMissing('employeeSalaryComponents.salaryComponent', 'payLevel.payMatrix');
+
+        $components = $this->sortSalaryComponents(
+            $salaryStructure->employeeSalaryComponents->where('status', 'active')
+        );
+
+        $earnings = [];
+        $deductions = [];
+
+        $hasBasicComponent = $components
+            ->contains(fn ($component) => $this->isBasicSalaryComponent($component->salaryComponent));
+
+        if (! $hasBasicComponent && (float) $salaryStructure->basic_salary > 0) {
+            $earnings[] = [
+                'name' => 'Basic Salary',
+                'code' => 'BASIC',
+                'amount' => (float) $salaryStructure->basic_salary,
+                'detail' => 'From salary structure',
+            ];
+        }
+
+        foreach ($components as $component) {
+            $row = [
+                'name' => $component->salaryComponent?->name ?? 'Salary Component',
+                'code' => $component->salaryComponent?->code ?? '-',
+                'amount' => (float) $component->amount,
+                'detail' => $this->previewDetail($component),
+            ];
+
+            $isDeduction = $component->salaryComponent?->type === 'deduction'
+                || $component->salaryComponent?->is_deduction;
+
+            if ($isDeduction) {
+                $deductions[] = $row;
+            } else {
+                $earnings[] = $row;
+            }
+        }
+
+        if ((float) $salaryStructure->grade_pay > 0) {
+            $earnings[] = [
+                'name' => 'Grade Pay',
+                'code' => 'GRADE_PAY',
+                'amount' => (float) $salaryStructure->grade_pay,
+                'detail' => 'Linked to Basic Salary',
+            ];
+        }
+
+        $gross = array_sum(array_column($earnings, 'amount'));
+        $deductionsTotal = array_sum(array_column($deductions, 'amount'));
+
+        return [
+            'earnings' => $earnings,
+            'deductions' => $deductions,
+            'gross' => $gross,
+            'deductions_total' => $deductionsTotal,
+            'net' => $gross - $deductionsTotal,
+        ];
+    }
+
+    private function previewDetail($component): string
+    {
+        if ($component->calculation_type === 'percentage') {
+            $base = $this->calculationBaseOptions()[$component->calculation_base] ?? 'selected base';
+
+            return number_format((float) $component->percentage_rate, 2).'% on '.$base;
+        }
+
+        if ($component->formula) {
+            return 'Formula: '.$component->formula;
+        }
+
+        return ucfirst($component->calculation_type);
+    }
+
+    private function salaryComponentsForDisplay()
+    {
+        $salaryStructure = $this->currentSalaryStructure();
+
+        if (! $salaryStructure) {
+            return collect();
+        }
+
+        $salaryStructure->loadMissing('employeeSalaryComponents.salaryComponent');
+
+        return $this->sortSalaryComponents($salaryStructure->employeeSalaryComponents);
+    }
+
+    private function sortSalaryComponents($components)
+    {
+        return $components
+            ->sortBy(fn ($component): string => sprintf(
+                '%02d-%03d-%s-%010d',
+                $this->salaryComponentGroupRank($component),
+                $this->salaryComponentCodeRank($component),
+                strtolower((string) ($component->salaryComponent?->name ?? '')),
+                $component->id ?? 0,
+            ))
+            ->values();
+    }
+
+    private function salaryComponentGroupRank($component): int
+    {
+        if ($this->isBasicSalaryComponent($component->salaryComponent)) {
+            return 0;
+        }
+
+        if ($component->salaryComponent?->type === 'deduction' || $component->salaryComponent?->is_deduction) {
+            return 30;
+        }
+
+        if ($component->salaryComponent?->type === 'employer_contribution') {
+            return 20;
+        }
+
+        if ($component->salaryComponent?->type === 'earning') {
+            return 10;
+        }
+
+        return 40;
+    }
+
+    private function salaryComponentCodeRank($component): int
+    {
+        return match (strtoupper((string) $component->salaryComponent?->code)) {
+            'BASIC' => 0,
+            'DA' => 10,
+            'HRA' => 20,
+            'TA' => 30,
+            'NPS' => 100,
+            'TAX' => 110,
+            default => 50,
+        };
     }
 
     private function selectedSalaryComponentIsBasic(): bool

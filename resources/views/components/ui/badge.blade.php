@@ -13,6 +13,6 @@ $variants = [
 ];
 @endphp
 
-<span {{ $attributes->merge(['class' => 'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium ' . $variants[$variant]]) }}>
+<span {{ $attributes->merge(['class' => 'inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium ' . $variants[$variant]]) }}>
     {{ $slot }}
 </span>

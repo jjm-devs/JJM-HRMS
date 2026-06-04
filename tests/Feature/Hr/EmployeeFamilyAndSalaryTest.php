@@ -252,11 +252,247 @@ class EmployeeFamilyAndSalaryTest extends TestCase
         ]);
 
         Livewire::test(Show::class, ['employee' => $employee->fresh()])
+            ->set('activeTab', 'salary')
+            ->assertSee('Payroll Preview')
+            ->assertSee('38,500.00')
+            ->assertSee('3,850.00')
+            ->assertSee('34,650.00')
+            ->assertSee('10.00% on Gross Earnings');
+
+        Livewire::test(Show::class, ['employee' => $employee->fresh()])
             ->call('deleteSalaryComponent', $component->id)
             ->assertHasNoErrors();
 
         $this->assertDatabaseMissing('employee_salary_components', [
             'id' => $component->id,
+        ]);
+    }
+
+    public function test_effective_date_change_creates_salary_revision(): void
+    {
+        $hr = User::query()->create([
+            'name' => 'HR User',
+            'email' => 'hr-revision@example.test',
+            'password' => 'password',
+            'is_hr' => true,
+            'status' => 'active',
+        ]);
+
+        $employee = Employee::query()->create([
+            'employee_code' => 'EMP-REVISION-00001',
+            'full_name' => 'Revision Employee',
+            'service_status' => 'active',
+        ]);
+
+        $basicSalary = SalaryComponent::query()->create([
+            'name' => 'Basic Salary',
+            'code' => 'BASIC',
+            'type' => 'earning',
+            'calculation_type' => 'fixed',
+            'default_amount' => 0,
+            'status' => 'active',
+        ]);
+
+        $hra = SalaryComponent::query()->create([
+            'name' => 'House Rent Allowance',
+            'code' => 'HRA-REVISION',
+            'type' => 'earning',
+            'calculation_type' => 'percentage',
+            'default_amount' => 0,
+            'status' => 'active',
+        ]);
+
+        $oldStructure = $employee->salaryStructures()->create([
+            'basic_salary' => 35000,
+            'effective_from' => '2026-05-01',
+            'status' => 'active',
+        ]);
+
+        $oldBasicComponent = $oldStructure->employeeSalaryComponents()->create([
+            'salary_component_id' => $basicSalary->id,
+            'amount' => 35000,
+            'calculation_type' => 'fixed',
+            'status' => 'active',
+        ]);
+
+        $oldStructure->employeeSalaryComponents()->create([
+            'salary_component_id' => $hra->id,
+            'amount' => 3500,
+            'percentage_rate' => 10,
+            'calculation_type' => 'percentage',
+            'calculation_base' => 'basic_salary',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($hr);
+
+        Livewire::test(Show::class, ['employee' => $employee])
+            ->call('editSalaryComponent', $oldBasicComponent->id)
+            ->set('salaryComponentForm.amount', '40000')
+            ->set('salaryComponentForm.effective_from', '2026-06-01')
+            ->call('saveSalaryComponent')
+            ->assertHasNoErrors();
+
+        $this->assertSame(2, $employee->salaryStructures()->count());
+
+        $oldStructure->refresh();
+        $newStructure = $employee->salaryStructures()->latest('id')->firstOrFail();
+
+        $this->assertSame('35000.00', $oldStructure->basic_salary);
+        $this->assertSame('2026-05-01', $oldStructure->effective_from->toDateString());
+        $this->assertSame('40000.00', $newStructure->basic_salary);
+        $this->assertSame('2026-06-01', $newStructure->effective_from->toDateString());
+
+        $this->assertDatabaseHas('employee_salary_components', [
+            'salary_structure_id' => $oldStructure->id,
+            'salary_component_id' => $hra->id,
+            'amount' => 3500,
+        ]);
+
+        $this->assertDatabaseHas('employee_salary_components', [
+            'salary_structure_id' => $newStructure->id,
+            'salary_component_id' => $basicSalary->id,
+            'amount' => 40000,
+        ]);
+
+        $this->assertDatabaseHas('employee_salary_components', [
+            'salary_structure_id' => $newStructure->id,
+            'salary_component_id' => $hra->id,
+            'amount' => 4000,
+        ]);
+
+        Livewire::test(Show::class, ['employee' => $employee->fresh()])
+            ->set('activeTab', 'salary')
+            ->assertSee('Salary Revision History')
+            ->assertSee('01 May 2026')
+            ->assertSee('01 Jun 2026');
+    }
+
+    public function test_salary_components_render_in_business_order(): void
+    {
+        $hr = User::query()->create([
+            'name' => 'HR User',
+            'email' => 'hr-order@example.test',
+            'password' => 'password',
+            'is_hr' => true,
+            'status' => 'active',
+        ]);
+
+        $employee = Employee::query()->create([
+            'employee_code' => 'EMP-ORDER-00001',
+            'full_name' => 'Ordered Salary Employee',
+            'service_status' => 'active',
+        ]);
+
+        $basicSalary = SalaryComponent::query()->create([
+            'name' => 'Basic Salary',
+            'code' => 'BASIC',
+            'type' => 'earning',
+            'calculation_type' => 'fixed',
+            'default_amount' => 0,
+            'status' => 'active',
+        ]);
+
+        $hra = SalaryComponent::query()->create([
+            'name' => 'House Rent Allowance',
+            'code' => 'HRA',
+            'type' => 'earning',
+            'calculation_type' => 'fixed',
+            'default_amount' => 0,
+            'status' => 'active',
+        ]);
+
+        $tax = SalaryComponent::query()->create([
+            'name' => 'Income Tax',
+            'code' => 'TAX',
+            'type' => 'deduction',
+            'calculation_type' => 'fixed',
+            'default_amount' => 0,
+            'is_deduction' => true,
+            'status' => 'active',
+        ]);
+
+        $salaryStructure = $employee->salaryStructures()->create([
+            'basic_salary' => 35000,
+            'status' => 'active',
+        ]);
+
+        $salaryStructure->employeeSalaryComponents()->create([
+            'salary_component_id' => $tax->id,
+            'amount' => 2500,
+            'calculation_type' => 'fixed',
+            'status' => 'active',
+        ]);
+
+        $salaryStructure->employeeSalaryComponents()->create([
+            'salary_component_id' => $hra->id,
+            'amount' => 4200,
+            'calculation_type' => 'fixed',
+            'status' => 'active',
+        ]);
+
+        $salaryStructure->employeeSalaryComponents()->create([
+            'salary_component_id' => $basicSalary->id,
+            'amount' => 35000,
+            'calculation_type' => 'fixed',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($hr);
+
+        Livewire::test(Show::class, ['employee' => $employee])
+            ->set('activeTab', 'salary')
+            ->assertSeeInOrder([
+                'Basic Salary',
+                'House Rent Allowance',
+                'Income Tax',
+            ]);
+    }
+
+    public function test_percentage_component_requires_non_zero_calculation_base(): void
+    {
+        $hr = User::query()->create([
+            'name' => 'HR User',
+            'email' => 'hr-zero-base@example.test',
+            'password' => 'password',
+            'is_hr' => true,
+            'status' => 'active',
+        ]);
+
+        $employee = Employee::query()->create([
+            'employee_code' => 'EMP-ZERO-BASE-00001',
+            'full_name' => 'Zero Base Employee',
+            'service_status' => 'active',
+        ]);
+
+        $employee->salaryStructures()->create([
+            'basic_salary' => 0,
+            'status' => 'active',
+        ]);
+
+        $tax = SalaryComponent::query()->create([
+            'name' => 'Income Tax',
+            'code' => 'TAX-ZERO-BASE',
+            'type' => 'deduction',
+            'calculation_type' => 'percentage',
+            'default_amount' => 0,
+            'is_deduction' => true,
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($hr);
+
+        Livewire::test(Show::class, ['employee' => $employee])
+            ->set('activeTab', 'salary')
+            ->set('salaryComponentForm.salary_component_id', (string) $tax->id)
+            ->set('salaryComponentForm.calculation_type', 'percentage')
+            ->set('salaryComponentForm.percentage_rate', '10')
+            ->set('salaryComponentForm.calculation_base', 'gross_earnings')
+            ->call('saveSalaryComponent')
+            ->assertHasErrors(['salaryComponentForm.calculation_base']);
+
+        $this->assertDatabaseMissing('employee_salary_components', [
+            'salary_component_id' => $tax->id,
         ]);
     }
 }

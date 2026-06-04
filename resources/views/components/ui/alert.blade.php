@@ -12,7 +12,7 @@ $variants = [
 ];
 @endphp
 
-<div class="rounded-lg border px-4 py-3 text-sm {{ $variants[$variant] }}">
+<div class="border px-4 py-3 text-sm {{ $variants[$variant] }}">
     @if ($title)
         <p class="font-semibold">{{ $title }}</p>
         <p class="mt-0.5 opacity-90">{{ $slot }}</p>

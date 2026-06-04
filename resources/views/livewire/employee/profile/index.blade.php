@@ -160,7 +160,7 @@
                             @endif
 
                             <label class="flex items-center gap-2 text-sm font-medium text-slate-700">
-                                <input wire:model="contactForm.is_primary" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-600">
+                                <input wire:model="contactForm.is_primary" type="checkbox" class="h-4 w-4 border-slate-300 text-blue-700 focus:ring-blue-600">
                                 Primary for this contact type
                             </label>
 

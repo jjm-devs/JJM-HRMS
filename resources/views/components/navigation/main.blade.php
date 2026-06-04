@@ -39,7 +39,7 @@
             @endphp
             <a
                 href="{{ route($link['route']) }}"
-                class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition
+                class="flex items-center gap-2.5 px-3 py-2 text-sm font-medium transition
                     {{ $isActive
                         ? 'bg-blue-50 text-blue-700'
                         : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900' }}"
@@ -54,8 +54,8 @@
 
     {{-- Bottom user info --}}
     <div class="border-t border-slate-100 p-3">
-        <div class="flex items-center gap-2.5 rounded-lg px-2 py-2">
-            <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">
+        <div class="flex items-center gap-2.5 px-2 py-2">
+            <div class="flex h-7 w-7 shrink-0 items-center justify-center bg-blue-100 text-xs font-semibold text-blue-700">
                 {{ strtoupper(substr(auth()->user()->name, 0, 1)) }}
             </div>
             <div class="min-w-0 flex-1">

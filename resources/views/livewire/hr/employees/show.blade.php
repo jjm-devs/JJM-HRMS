@@ -58,7 +58,7 @@
             <div class="mb-4">
                 <x-ui.alert variant="warning" title="Temporary Login Details">
                     Share these details with the employee now. The password will not be visible again after this page changes.
-                    <span class="mt-3 block rounded-lg bg-white/70 p-3 font-mono text-xs leading-6">
+                    <span class="mt-3 block bg-white/70 p-3 font-mono text-xs leading-6">
                         Email: {{ $generatedLogin['email'] }}<br>
                         Password: {{ $generatedLogin['password'] }}
                     </span>
@@ -269,7 +269,7 @@
                             <input
                                 wire:model="contactForm.is_primary"
                                 type="checkbox"
-                                class="h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-600"
+                                class="h-4 w-4 border-slate-300 text-blue-700 focus:ring-blue-600"
                             >
                             Primary for this contact type
                         </label>
@@ -296,21 +296,7 @@
             @endif
 
             @php
-                $salaryStructure = $employee->salaryStructures->sortByDesc('id')->first();
-                $salaryComponents = $salaryStructure
-                    ? $salaryStructure->employeeSalaryComponents->sortByDesc('id')
-                    : collect();
-                $totalEarnings = $salaryComponents
-                    ->filter(fn ($item) => $item->salaryComponent?->type !== 'deduction' && ! $item->salaryComponent?->is_deduction)
-                    ->sum(fn ($item) => (float) $item->amount);
-                $hasBasicSalaryComponent = $salaryComponents
-                    ->contains(fn ($item) => $item->salaryComponent?->code === 'BASIC' || str_contains(strtolower((string) $item->salaryComponent?->name), 'basic'));
-                if ($salaryStructure && ! $hasBasicSalaryComponent) {
-                    $totalEarnings += (float) $salaryStructure->basic_salary;
-                }
-                $totalDeductions = $salaryComponents
-                    ->filter(fn ($item) => $item->salaryComponent?->type === 'deduction' || $item->salaryComponent?->is_deduction)
-                    ->sum(fn ($item) => (float) $item->amount);
+                $salaryStructure = $salaryStructure ?? null;
             @endphp
 
             @if (session('salary_component_status'))
@@ -334,11 +320,11 @@
                         </div>
                         <div>
                             <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Gross Earnings</p>
-                            <p class="mt-1 text-sm font-medium text-slate-900">{{ number_format($totalEarnings, 2) }}</p>
+                            <p class="mt-1 text-sm font-medium text-slate-900">{{ number_format($payrollPreview['gross'], 2) }}</p>
                         </div>
                         <div>
                             <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Net Pay</p>
-                            <p class="mt-1 text-sm font-medium text-slate-900">{{ number_format($totalEarnings - $totalDeductions, 2) }}</p>
+                            <p class="mt-1 text-sm font-medium text-slate-900">{{ number_format($payrollPreview['net'], 2) }}</p>
                         </div>
                     </div>
 
@@ -518,6 +504,109 @@
                     </form>
                 </x-ui.card>
             </div>
+
+            <x-ui.card title="Payroll Preview">
+                <div class="grid gap-5 xl:grid-cols-3">
+                    <div class="xl:col-span-2">
+                        <div class="grid gap-5 lg:grid-cols-2">
+                            <div>
+                                <h3 class="text-sm font-semibold text-slate-800">Earnings</h3>
+                                <div class="mt-3 divide-y divide-slate-100 border border-slate-200 bg-white">
+                                    @forelse ($payrollPreview['earnings'] as $earning)
+                                        <div class="flex items-start justify-between gap-4 px-4 py-3">
+                                            <div>
+                                                <p class="text-sm font-medium text-slate-900">{{ $earning['name'] }}</p>
+                                                <p class="text-xs text-slate-400">{{ $earning['code'] }} · {{ $earning['detail'] }}</p>
+                                            </div>
+                                            <p class="text-sm font-semibold text-slate-900">{{ number_format($earning['amount'], 2) }}</p>
+                                        </div>
+                                    @empty
+                                        <div class="px-4 py-6">
+                                            <x-ui.empty-state
+                                                title="No earnings"
+                                                description="Add Basic Salary or earning components to preview payroll."
+                                            />
+                                        </div>
+                                    @endforelse
+                                </div>
+                            </div>
+
+                            <div>
+                                <h3 class="text-sm font-semibold text-slate-800">Deductions</h3>
+                                <div class="mt-3 divide-y divide-slate-100 border border-slate-200 bg-white">
+                                    @forelse ($payrollPreview['deductions'] as $deduction)
+                                        <div class="flex items-start justify-between gap-4 px-4 py-3">
+                                            <div>
+                                                <p class="text-sm font-medium text-slate-900">{{ $deduction['name'] }}</p>
+                                                <p class="text-xs text-slate-400">{{ $deduction['code'] }} · {{ $deduction['detail'] }}</p>
+                                            </div>
+                                            <p class="text-sm font-semibold text-red-700">{{ number_format($deduction['amount'], 2) }}</p>
+                                        </div>
+                                    @empty
+                                        <div class="px-4 py-6">
+                                            <x-ui.empty-state
+                                                title="No deductions"
+                                                description="Deduction components will appear here."
+                                            />
+                                        </div>
+                                    @endforelse
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border border-slate-200 bg-slate-50 p-4">
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between text-sm">
+                                <span class="text-slate-500">Gross Earnings</span>
+                                <span class="font-semibold text-slate-900">{{ number_format($payrollPreview['gross'], 2) }}</span>
+                            </div>
+                            <div class="flex items-center justify-between text-sm">
+                                <span class="text-slate-500">Total Deductions</span>
+                                <span class="font-semibold text-red-700">{{ number_format($payrollPreview['deductions_total'], 2) }}</span>
+                            </div>
+                            <div class="border-t border-slate-200 pt-3">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm font-semibold text-slate-700">Net Pay</span>
+                                    <span class="text-lg font-bold text-green-700">{{ number_format($payrollPreview['net'], 2) }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </x-ui.card>
+
+            <x-ui.card title="Salary Revision History">
+                <x-ui.table :headers="['Effective', 'Pay Level', 'Basic Salary', 'Grade Pay', 'Components', 'Status']">
+                    @forelse ($employee->salaryStructures->sortByDesc('id') as $revision)
+                        <tr class="transition hover:bg-slate-50">
+                            <x-ui.table.td>
+                                {{ $revision->effective_from?->format('d M Y') ?? '-' }}
+                                <span class="text-slate-400">to</span>
+                                {{ $revision->effective_to?->format('d M Y') ?? 'Present' }}
+                            </x-ui.table.td>
+                            <x-ui.table.td>{{ $revision->payLevel?->name ?? '-' }}</x-ui.table.td>
+                            <x-ui.table.td>{{ number_format((float) $revision->basic_salary, 2) }}</x-ui.table.td>
+                            <x-ui.table.td>{{ $revision->grade_pay !== null ? number_format((float) $revision->grade_pay, 2) : '-' }}</x-ui.table.td>
+                            <x-ui.table.td>{{ $revision->employeeSalaryComponents->count() }}</x-ui.table.td>
+                            <x-ui.table.td>
+                                <x-ui.badge :variant="$revision->status === 'active' ? 'success' : 'default'">
+                                    {{ $salaryStatusOptions[$revision->status] ?? ucfirst($revision->status) }}
+                                </x-ui.badge>
+                            </x-ui.table.td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="6">
+                                <x-ui.empty-state
+                                    title="No salary revisions"
+                                    description="Salary revisions will appear after salary components are saved."
+                                />
+                            </td>
+                        </tr>
+                    @endforelse
+                </x-ui.table>
+            </x-ui.card>
         </div>
     @else
         <div class="mt-5">

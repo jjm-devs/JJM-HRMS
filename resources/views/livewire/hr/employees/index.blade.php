@@ -54,7 +54,7 @@
             <tr class="transition hover:bg-slate-50">
                 <x-ui.table.td>
                     <div class="flex items-center gap-2.5">
-                        <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">
+                        <div class="flex h-8 w-8 shrink-0 items-center justify-center bg-blue-100 text-xs font-semibold text-blue-700">
                             {{ strtoupper(substr($employee->full_name, 0, 1)) }}
                         </div>
                         <div>

@@ -15,7 +15,7 @@
         <div class="flex items-center">
             {{-- Circle --}}
             <div class="flex flex-col items-center gap-1.5">
-                <div class="flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold transition
+                <div class="flex h-7 w-7 items-center justify-center text-xs font-semibold transition
                     {{ $isDone   ? 'bg-blue-700 text-white' : '' }}
                     {{ $isActive ? 'border-2 border-blue-700 text-blue-700 bg-white' : '' }}
                     {{ $isPending ? 'border-2 border-slate-200 text-slate-400 bg-white' : '' }}
