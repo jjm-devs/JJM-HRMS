@@ -22,6 +22,8 @@ class Show extends Component
 
     public ?int $editingFamilyMemberId = null;
 
+    public ?int $editingQualificationId = null;
+
     public ?int $editingSalaryComponentId = null;
 
     public ?array $generatedLogin = null;
@@ -51,6 +53,16 @@ class Show extends Component
         'nominee_share' => '',
     ];
 
+    public array $qualificationForm = [
+        'qualification' => '',
+        'institution' => '',
+        'board_or_university' => '',
+        'year_of_passing' => '',
+        'percentage_or_cgpa' => '',
+        'specialization' => '',
+        'status' => 'active',
+    ];
+
     public array $salaryComponentForm = [
         'pay_level_id' => '',
         'salary_component_id' => '',
@@ -60,8 +72,6 @@ class Show extends Component
         'calculation_type' => 'fixed',
         'calculation_base' => '',
         'formula' => '',
-        'effective_from' => '',
-        'effective_to' => '',
         'salary_structure_status' => 'active',
         'status' => 'active',
     ];
@@ -76,6 +86,7 @@ class Show extends Component
             'employmentType',
             'familyMembers',
             'orgUnit',
+            'qualifications',
             'salaryStructures.employeeSalaryComponents.salaryComponent',
             'salaryStructures.payLevel.payMatrix',
             'user',
@@ -133,16 +144,32 @@ class Show extends Component
         $this->employee->load('familyMembers');
     }
 
+    public function saveQualification(): void
+    {
+        $data = $this->validateQualificationForm();
+
+        if ($this->editingQualificationId) {
+            $qualification = $this->employee->qualifications()->whereKey($this->editingQualificationId)->firstOrFail();
+            $qualification->update($data);
+            session()->flash('qualification_status', 'Qualification updated successfully.');
+        } else {
+            $this->employee->qualifications()->create($data);
+            session()->flash('qualification_status', 'Qualification added successfully.');
+        }
+
+        $this->resetQualificationForm();
+        $this->employee->load('qualifications');
+    }
+
     public function saveSalaryComponent(): void
     {
         $currentSalaryStructure = $this->currentSalaryStructure();
-        $createsRevision = $this->shouldCreateSalaryRevisionFromForm($currentSalaryStructure);
-        $data = $this->validateSalaryComponentForm($createsRevision ? null : $currentSalaryStructure?->id);
-        $salaryStructure = $this->saveSalaryStructureFromComponent($data, $currentSalaryStructure, $createsRevision);
+        $data = $this->validateSalaryComponentForm($currentSalaryStructure?->id);
+        $salaryStructure = $this->saveSalaryStructureFromComponent($data, $currentSalaryStructure);
 
         $componentData = $this->salaryComponentData($data, $salaryStructure);
 
-        if ($this->editingSalaryComponentId && ! $createsRevision) {
+        if ($this->editingSalaryComponentId) {
             $component = $salaryStructure
                 ->employeeSalaryComponents()
                 ->whereKey($this->editingSalaryComponentId)
@@ -155,10 +182,7 @@ class Show extends Component
                 ['salary_component_id' => $componentData['salary_component_id']],
                 $componentData,
             );
-            session()->flash(
-                'salary_component_status',
-                $createsRevision ? 'Salary revision created successfully.' : 'Salary component added successfully.',
-            );
+            session()->flash('salary_component_status', 'Salary component added successfully.');
         }
 
         $this->recalculatePercentageComponents($salaryStructure);
@@ -322,14 +346,12 @@ class Show extends Component
             'calculation_type' => $component->calculation_type,
             'calculation_base' => $component->calculation_base ?? '',
             'formula' => $component->formula ?? '',
-            'effective_from' => $salaryStructure->effective_from?->format('Y-m-d') ?? '',
-            'effective_to' => $salaryStructure->effective_to?->format('Y-m-d') ?? '',
             'salary_structure_status' => $salaryStructure->status ?? 'active',
             'status' => $component->status,
         ];
     }
 
-    public function deleteSalaryComponent(int $salaryComponentId): void
+    public function removeSalaryComponent(int $salaryComponentId): void
     {
         $salaryStructure = $this->currentSalaryStructure();
 
@@ -345,7 +367,9 @@ class Show extends Component
 
         $deletingBasicSalary = $this->isBasicSalaryComponent($component->salaryComponent);
 
-        $component->delete();
+        $component->update([
+            'status' => 'inactive',
+        ]);
 
         if ($deletingBasicSalary) {
             $salaryStructure->update([
@@ -358,11 +382,17 @@ class Show extends Component
             $this->resetSalaryComponentForm();
         }
 
+        $this->recalculatePercentageComponents($salaryStructure);
         $this->employee->load([
             'salaryStructures.employeeSalaryComponents.salaryComponent',
             'salaryStructures.payLevel.payMatrix',
         ]);
-        session()->flash('salary_component_status', 'Salary component deleted successfully.');
+        session()->flash('salary_component_status', 'Salary component removed successfully.');
+    }
+
+    public function deleteSalaryComponent(int $salaryComponentId): void
+    {
+        $this->removeSalaryComponent($salaryComponentId);
     }
 
     public function deleteFamilyMember(int $familyMemberId): void
@@ -375,6 +405,43 @@ class Show extends Component
 
         $this->employee->load('familyMembers');
         session()->flash('family_status', 'Family member deleted successfully.');
+    }
+
+    public function editQualification(int $qualificationId): void
+    {
+        $qualification = $this->employee->qualifications()->whereKey($qualificationId)->firstOrFail();
+
+        $this->editingQualificationId = $qualification->id;
+        $this->qualificationForm = [
+            'qualification' => $qualification->qualification,
+            'institution' => $qualification->institution ?? '',
+            'board_or_university' => $qualification->board_or_university ?? '',
+            'year_of_passing' => $qualification->year_of_passing ?? '',
+            'percentage_or_cgpa' => $qualification->percentage_or_cgpa ?? '',
+            'specialization' => $qualification->specialization ?? '',
+            'status' => $qualification->status,
+        ];
+    }
+
+    public function removeQualification(int $qualificationId): void
+    {
+        $qualification = $this->employee->qualifications()->whereKey($qualificationId)->firstOrFail();
+
+        $qualification->update([
+            'status' => 'inactive',
+        ]);
+
+        if ($this->editingQualificationId === $qualificationId) {
+            $this->resetQualificationForm();
+        }
+
+        $this->employee->load('qualifications');
+        session()->flash('qualification_status', 'Qualification removed successfully.');
+    }
+
+    public function deleteQualification(int $qualificationId): void
+    {
+        $this->removeQualification($qualificationId);
     }
 
     public function resetContactForm(): void
@@ -412,6 +479,21 @@ class Show extends Component
         ];
     }
 
+    public function resetQualificationForm(): void
+    {
+        $this->editingQualificationId = null;
+        $this->resetErrorBag();
+        $this->qualificationForm = [
+            'qualification' => '',
+            'institution' => '',
+            'board_or_university' => '',
+            'year_of_passing' => '',
+            'percentage_or_cgpa' => '',
+            'specialization' => '',
+            'status' => 'active',
+        ];
+    }
+
     public function resetSalaryComponentForm(): void
     {
         $salaryStructure = $this->currentSalaryStructure();
@@ -426,8 +508,6 @@ class Show extends Component
             'calculation_type' => 'fixed',
             'calculation_base' => '',
             'formula' => '',
-            'effective_from' => $salaryStructure?->effective_from?->format('Y-m-d') ?? '',
-            'effective_to' => $salaryStructure?->effective_to?->format('Y-m-d') ?? '',
             'salary_structure_status' => $salaryStructure?->status ?? 'active',
             'status' => 'active',
         ];
@@ -442,6 +522,7 @@ class Show extends Component
             'familyGenderOptions' => $this->familyGenderOptions(),
             'payLevelOptions' => $this->payLevelOptions(),
             'payrollPreview' => $this->payrollPreview(),
+            'qualificationStatusOptions' => $this->qualificationStatusOptions(),
             'relationshipOptions' => $this->relationshipOptions(),
             'salaryComponents' => $this->salaryComponentsForDisplay(),
             'salaryComponentOptions' => $this->salaryComponentOptions(),
@@ -512,6 +593,21 @@ class Show extends Component
         return $validated;
     }
 
+    private function validateQualificationForm(): array
+    {
+        $validated = $this->validate([
+            'qualificationForm.qualification' => ['required', 'string', 'max:150'],
+            'qualificationForm.institution' => ['nullable', 'string', 'max:150'],
+            'qualificationForm.board_or_university' => ['nullable', 'string', 'max:150'],
+            'qualificationForm.year_of_passing' => ['nullable', 'integer', 'min:1900', 'max:'.date('Y')],
+            'qualificationForm.percentage_or_cgpa' => ['nullable', 'string', 'max:50'],
+            'qualificationForm.specialization' => ['nullable', 'string', 'max:150'],
+            'qualificationForm.status' => ['required', Rule::in(array_keys($this->qualificationStatusOptions()))],
+        ])['qualificationForm'];
+
+        return array_map(fn ($value) => $value === '' ? null : $value, $validated);
+    }
+
     private function validateSalaryComponentForm(?int $salaryStructureId): array
     {
         $salaryStructure = $salaryStructureId
@@ -527,6 +623,7 @@ class Show extends Component
         if ($salaryStructureId) {
             $salaryComponentIdRules[] = Rule::unique('employee_salary_components', 'salary_component_id')
                 ->where('salary_structure_id', $salaryStructureId)
+                ->where('status', 'active')
                 ->ignore($this->editingSalaryComponentId);
         }
 
@@ -539,8 +636,6 @@ class Show extends Component
             'salaryComponentForm.calculation_type' => ['required', Rule::in(array_keys($this->calculationTypeOptions()))],
             'salaryComponentForm.calculation_base' => ['nullable', Rule::in(array_keys($this->calculationBaseOptions()))],
             'salaryComponentForm.formula' => ['nullable', 'string', 'max:2000'],
-            'salaryComponentForm.effective_from' => ['nullable', 'date'],
-            'salaryComponentForm.effective_to' => ['nullable', 'date', 'after_or_equal:salaryComponentForm.effective_from'],
             'salaryComponentForm.salary_structure_status' => ['required', Rule::in(array_keys($this->salaryStatusOptions()))],
             'salaryComponentForm.status' => ['required', Rule::in(array_keys($this->salaryStatusOptions()))],
         ], [
@@ -644,6 +739,14 @@ class Show extends Component
         ];
     }
 
+    private function qualificationStatusOptions(): array
+    {
+        return [
+            'active' => 'Active',
+            'inactive' => 'Inactive',
+        ];
+    }
+
     private function salaryStatusOptions(): array
     {
         return [
@@ -727,12 +830,10 @@ class Show extends Component
         return 'Jjm@'.Str::upper(Str::random(4)).random_int(1000, 9999);
     }
 
-    private function saveSalaryStructureFromComponent(array $data, ?SalaryStructure $salaryStructure, bool $createsRevision): SalaryStructure
+    private function saveSalaryStructureFromComponent(array $data, ?SalaryStructure $salaryStructure): SalaryStructure
     {
         $salaryStructureData = [
             'pay_level_id' => $data['pay_level_id'],
-            'effective_from' => $data['effective_from'],
-            'effective_to' => $data['effective_to'],
             'status' => $data['salary_structure_status'],
         ];
 
@@ -746,19 +847,13 @@ class Show extends Component
             $salaryStructureData['grade_pay'] = null;
         }
 
-        if ($salaryStructure && ! $createsRevision) {
+        if ($salaryStructure) {
             $salaryStructure->update($salaryStructureData);
 
             return $salaryStructure->refresh();
         }
 
-        $newSalaryStructure = $this->employee->salaryStructures()->create($salaryStructureData);
-
-        if ($salaryStructure && $createsRevision) {
-            $this->copySalaryComponents($salaryStructure, $newSalaryStructure);
-        }
-
-        return $newSalaryStructure;
+        return $this->employee->salaryStructures()->create($salaryStructureData);
     }
 
     private function salaryComponentData(array $data, SalaryStructure $salaryStructure): array
@@ -774,44 +869,12 @@ class Show extends Component
         ];
     }
 
-    private function shouldCreateSalaryRevisionFromForm(?SalaryStructure $salaryStructure): bool
-    {
-        if (! $salaryStructure) {
-            return false;
-        }
-
-        return $this->normalizedDate($this->salaryComponentForm['effective_from'] ?? null) !== $this->normalizedDate($salaryStructure->effective_from?->format('Y-m-d'))
-            || $this->normalizedDate($this->salaryComponentForm['effective_to'] ?? null) !== $this->normalizedDate($salaryStructure->effective_to?->format('Y-m-d'));
-    }
-
-    private function normalizedDate(?string $date): ?string
-    {
-        return $date === '' ? null : $date;
-    }
-
-    private function copySalaryComponents(SalaryStructure $from, SalaryStructure $to): void
-    {
-        $from->loadMissing('employeeSalaryComponents');
-
-        foreach ($from->employeeSalaryComponents as $component) {
-            $to->employeeSalaryComponents()->create([
-                'salary_component_id' => $component->salary_component_id,
-                'amount' => $component->amount,
-                'percentage_rate' => $component->percentage_rate,
-                'calculation_type' => $component->calculation_type,
-                'calculation_base' => $component->calculation_base,
-                'formula' => $component->formula,
-                'status' => $component->status,
-            ]);
-        }
-    }
-
     private function recalculatePercentageComponents(SalaryStructure $salaryStructure): void
     {
         $salaryStructure->load('employeeSalaryComponents.salaryComponent');
 
         foreach ($salaryStructure->employeeSalaryComponents as $component) {
-            if ($component->calculation_type !== 'percentage') {
+            if ($component->status !== 'active' || $component->calculation_type !== 'percentage') {
                 continue;
             }
 

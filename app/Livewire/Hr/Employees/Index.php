@@ -6,6 +6,7 @@ use App\Models\DepartmentStream;
 use App\Models\Employee;
 use App\Models\EmploymentType;
 use App\Models\OrgUnit;
+use App\Services\Hr\HrScopeService;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -14,14 +15,12 @@ class Index extends Component
     use WithPagination;
 
     public string $search = '';
-
     public string $filterOrgUnit = '';
-
     public string $filterDepartmentStream = '';
-
     public string $filterEmploymentType = '';
-
     public string $filterStatus = '';
+
+    private HrScopeService $scope;
 
     public function updated($property): void
     {
@@ -32,26 +31,40 @@ class Index extends Component
 
     public function render()
     {
-        $employees = Employee::query()
-            ->with(['designation', 'departmentStream', 'employmentType', 'orgUnit'])
-            ->when($this->search !== '', function ($query): void {
-                $query->where(function ($query): void {
-                    $query
-                        ->where('full_name', 'like', '%'.$this->search.'%')
-                        ->orWhere('employee_code', 'like', '%'.$this->search.'%')
-                        ->orWhere('pan_number', 'like', '%'.$this->search.'%');
-                });
-            })
-            ->when($this->filterOrgUnit !== '', fn ($query) => $query->where('org_unit_id', $this->filterOrgUnit))
-            ->when($this->filterDepartmentStream !== '', fn ($query) => $query->where('department_stream_id', $this->filterDepartmentStream))
-            ->when($this->filterEmploymentType !== '', fn ($query) => $query->where('employment_type_id', $this->filterEmploymentType))
-            ->when($this->filterStatus !== '', fn ($query) => $query->where('service_status', $this->filterStatus))
-            ->latest('id')
+        $this->scope = app(HrScopeService::class);
+
+        $employees = $this->scope
+            ->applyToEmployeeQuery(
+                Employee::query()
+                    ->with(['designation', 'departmentStream', 'employmentType', 'orgUnit'])
+                    ->when($this->search !== '', function ($query): void {
+                        $query->where(function ($query): void {
+                            $query
+                                ->where('full_name', 'like', '%'.$this->search.'%')
+                                ->orWhere('employee_code', 'like', '%'.$this->search.'%')
+                                ->orWhere('pan_number', 'like', '%'.$this->search.'%');
+                        });
+                    })
+                    ->when($this->filterOrgUnit !== '', fn ($q) => $q->where('org_unit_id', $this->filterOrgUnit))
+                    ->when($this->filterDepartmentStream !== '', fn ($q) => $q->where('department_stream_id', $this->filterDepartmentStream))
+                    ->when($this->filterEmploymentType !== '', fn ($q) => $q->where('employment_type_id', $this->filterEmploymentType))
+                    ->when($this->filterStatus !== '', fn ($q) => $q->where('service_status', $this->filterStatus))
+                    ->latest('id')
+            )
             ->paginate(10);
+
+        // Scope the org unit filter dropdown to only show units the HR can access
+        $orgUnits = $this->scope->isUnrestricted()
+            ? OrgUnit::query()->orderBy('type')->orderBy('name')->get()
+            : OrgUnit::query()
+                ->whereIn('id', $this->scope->scopedOrgUnitIds())
+                ->orderBy('type')
+                ->orderBy('name')
+                ->get();
 
         return view('livewire.hr.employees.index', [
             'employees' => $employees,
-            'orgUnits' => OrgUnit::query()->orderBy('type')->orderBy('name')->get(),
+            'orgUnits' => $orgUnits,
             'departmentStreams' => DepartmentStream::query()->orderBy('name')->get(),
             'employmentTypes' => EmploymentType::query()->orderBy('name')->get(),
         ]);

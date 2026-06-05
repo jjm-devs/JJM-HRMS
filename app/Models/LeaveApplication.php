@@ -27,6 +27,10 @@ class LeaveApplication extends Model
 
     public const STATUS_CANCELLED = 'cancelled';
 
+    public const SOURCE_MANUAL_HR = 'manual_hr';
+
+    public const SOURCE_EMPLOYEE_REQUEST = 'employee_request';
+
     public const STATUSES = [
         self::STATUS_DRAFT,
         self::STATUS_SUBMITTED,
@@ -46,6 +50,9 @@ class LeaveApplication extends Model
         'total_days',
         'reason',
         'contact_during_leave',
+        'source',
+        'recorded_by',
+        'submitted_by',
         'status',
         'approved_by',
         'approved_at',
@@ -74,6 +81,16 @@ class LeaveApplication extends Model
     public function approvedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function recordedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'recorded_by');
+    }
+
+    public function submittedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'submitted_by');
     }
 
     public function days(): HasMany

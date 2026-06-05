@@ -2,12 +2,4 @@
 
 namespace App\Livewire\Hr\Leave;
 
-use Livewire\Component;
-
-class Index extends Component
-{
-    public function render()
-    {
-        return view('livewire.hr.leave.index');
-    }
-}
+class Index extends \App\Livewire\Hr\Attendance\Index {}

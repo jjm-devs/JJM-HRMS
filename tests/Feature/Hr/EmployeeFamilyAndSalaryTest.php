@@ -77,6 +77,78 @@ class EmployeeFamilyAndSalaryTest extends TestCase
         ]);
     }
 
+    public function test_hr_can_manage_employee_qualifications(): void
+    {
+        $hr = User::query()->create([
+            'name' => 'HR User',
+            'email' => 'hr-qualifications@example.test',
+            'password' => 'password',
+            'is_hr' => true,
+            'status' => 'active',
+        ]);
+
+        $employee = Employee::query()->create([
+            'employee_code' => 'EMP-QUAL-00001',
+            'full_name' => 'Qualification Employee',
+            'service_status' => 'active',
+        ]);
+
+        $this->actingAs($hr);
+
+        Livewire::test(Show::class, ['employee' => $employee])
+            ->set('activeTab', 'qualifications')
+            ->set('qualificationForm.qualification', 'B.Tech')
+            ->set('qualificationForm.specialization', 'Civil Engineering')
+            ->set('qualificationForm.institution', 'Assam Engineering College')
+            ->set('qualificationForm.board_or_university', 'Gauhati University')
+            ->set('qualificationForm.year_of_passing', '2020')
+            ->set('qualificationForm.percentage_or_cgpa', '8.1 CGPA')
+            ->set('qualificationForm.status', 'active')
+            ->call('saveQualification')
+            ->assertHasNoErrors();
+
+        $qualification = $employee->qualifications()->firstOrFail();
+
+        $this->assertDatabaseHas('employee_qualifications', [
+            'id' => $qualification->id,
+            'employee_id' => $employee->id,
+            'qualification' => 'B.Tech',
+            'specialization' => 'Civil Engineering',
+            'status' => 'active',
+        ]);
+
+        Livewire::test(Show::class, ['employee' => $employee->fresh()])
+            ->call('editQualification', $qualification->id)
+            ->set('qualificationForm.percentage_or_cgpa', '8.4 CGPA')
+            ->call('saveQualification')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('employee_qualifications', [
+            'id' => $qualification->id,
+            'percentage_or_cgpa' => '8.4 CGPA',
+        ]);
+
+        Livewire::test(Show::class, ['employee' => $employee->fresh()])
+            ->call('removeQualification', $qualification->id)
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('employee_qualifications', [
+            'id' => $qualification->id,
+            'status' => 'inactive',
+        ]);
+
+        Livewire::test(Show::class, ['employee' => $employee->fresh()])
+            ->call('editQualification', $qualification->id)
+            ->set('qualificationForm.status', 'active')
+            ->call('saveQualification')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('employee_qualifications', [
+            'id' => $qualification->id,
+            'status' => 'active',
+        ]);
+    }
+
     public function test_hr_can_update_employee_salary_details(): void
     {
         $hr = User::query()->create([
@@ -127,7 +199,6 @@ class EmployeeFamilyAndSalaryTest extends TestCase
             ->set('salaryComponentForm.amount', '35000')
             ->set('salaryComponentForm.grade_pay', '4200')
             ->set('salaryComponentForm.calculation_type', 'fixed')
-            ->set('salaryComponentForm.effective_from', '2026-05-01')
             ->set('salaryComponentForm.salary_structure_status', 'active')
             ->set('salaryComponentForm.status', 'active')
             ->call('saveSalaryComponent')
@@ -151,8 +222,6 @@ class EmployeeFamilyAndSalaryTest extends TestCase
             'calculation_type' => 'fixed',
             'status' => 'active',
         ]);
-
-        $this->assertSame('2026-05-01', $salaryStructure->effective_from->toDateString());
     }
 
     public function test_hr_can_manage_employee_salary_components(): void
@@ -260,27 +329,52 @@ class EmployeeFamilyAndSalaryTest extends TestCase
             ->assertSee('10.00% on Gross Earnings');
 
         Livewire::test(Show::class, ['employee' => $employee->fresh()])
-            ->call('deleteSalaryComponent', $component->id)
+            ->call('removeSalaryComponent', $component->id)
             ->assertHasNoErrors();
 
-        $this->assertDatabaseMissing('employee_salary_components', [
+        $this->assertDatabaseHas('employee_salary_components', [
             'id' => $component->id,
+            'status' => 'inactive',
         ]);
+
+        $this->assertDatabaseHas('employee_salary_components', [
+            'salary_structure_id' => $salaryStructure->id,
+            'salary_component_id' => $taxComponent->id,
+            'amount' => 3500,
+        ]);
+
+        Livewire::test(Show::class, ['employee' => $employee->fresh()])
+            ->set('salaryComponentForm.salary_component_id', (string) $salaryComponent->id)
+            ->set('salaryComponentForm.calculation_type', 'percentage')
+            ->set('salaryComponentForm.percentage_rate', '8')
+            ->set('salaryComponentForm.calculation_base', 'basic_salary')
+            ->set('salaryComponentForm.status', 'active')
+            ->call('saveSalaryComponent')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('employee_salary_components', [
+            'id' => $component->id,
+            'amount' => 2800,
+            'percentage_rate' => 8,
+            'status' => 'active',
+        ]);
+
+        $this->assertSame(2, $salaryStructure->employeeSalaryComponents()->count());
     }
 
-    public function test_effective_date_change_creates_salary_revision(): void
+    public function test_salary_component_edit_updates_current_salary_structure(): void
     {
         $hr = User::query()->create([
             'name' => 'HR User',
-            'email' => 'hr-revision@example.test',
+            'email' => 'hr-current-salary@example.test',
             'password' => 'password',
             'is_hr' => true,
             'status' => 'active',
         ]);
 
         $employee = Employee::query()->create([
-            'employee_code' => 'EMP-REVISION-00001',
-            'full_name' => 'Revision Employee',
+            'employee_code' => 'EMP-CURRENT-SALARY-00001',
+            'full_name' => 'Current Salary Employee',
             'service_status' => 'active',
         ]);
 
@@ -304,7 +398,6 @@ class EmployeeFamilyAndSalaryTest extends TestCase
 
         $oldStructure = $employee->salaryStructures()->create([
             'basic_salary' => 35000,
-            'effective_from' => '2026-05-01',
             'status' => 'active',
         ]);
 
@@ -329,43 +422,26 @@ class EmployeeFamilyAndSalaryTest extends TestCase
         Livewire::test(Show::class, ['employee' => $employee])
             ->call('editSalaryComponent', $oldBasicComponent->id)
             ->set('salaryComponentForm.amount', '40000')
-            ->set('salaryComponentForm.effective_from', '2026-06-01')
             ->call('saveSalaryComponent')
             ->assertHasNoErrors();
 
-        $this->assertSame(2, $employee->salaryStructures()->count());
+        $this->assertSame(1, $employee->salaryStructures()->count());
 
         $oldStructure->refresh();
-        $newStructure = $employee->salaryStructures()->latest('id')->firstOrFail();
 
-        $this->assertSame('35000.00', $oldStructure->basic_salary);
-        $this->assertSame('2026-05-01', $oldStructure->effective_from->toDateString());
-        $this->assertSame('40000.00', $newStructure->basic_salary);
-        $this->assertSame('2026-06-01', $newStructure->effective_from->toDateString());
+        $this->assertSame('40000.00', $oldStructure->basic_salary);
 
         $this->assertDatabaseHas('employee_salary_components', [
             'salary_structure_id' => $oldStructure->id,
-            'salary_component_id' => $hra->id,
-            'amount' => 3500,
-        ]);
-
-        $this->assertDatabaseHas('employee_salary_components', [
-            'salary_structure_id' => $newStructure->id,
             'salary_component_id' => $basicSalary->id,
             'amount' => 40000,
         ]);
 
         $this->assertDatabaseHas('employee_salary_components', [
-            'salary_structure_id' => $newStructure->id,
+            'salary_structure_id' => $oldStructure->id,
             'salary_component_id' => $hra->id,
             'amount' => 4000,
         ]);
-
-        Livewire::test(Show::class, ['employee' => $employee->fresh()])
-            ->set('activeTab', 'salary')
-            ->assertSee('Salary Revision History')
-            ->assertSee('01 May 2026')
-            ->assertSee('01 Jun 2026');
     }
 
     public function test_salary_components_render_in_business_order(): void

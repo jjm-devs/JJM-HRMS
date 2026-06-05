@@ -35,12 +35,13 @@ Route::middleware([EnsureHrUser::class, EnsurePasswordIsChanged::class])->group(
 
     Route::get('/attendance', fn () => view('app.page', [
         'livewireComponent' => 'hr.attendance.index',
-        'title' => 'Attendance',
+        'title' => 'Attendance & Leave',
     ]))->name('hr.attendance.index');
 
     Route::get('/leave', fn () => view('app.page', [
-        'livewireComponent' => 'hr.leave.index',
-        'title' => 'Leave',
+        'livewireComponent' => 'hr.attendance.index',
+        'livewireParams' => ['activeTab' => 'leave_register'],
+        'title' => 'Attendance & Leave',
     ]))->name('hr.leave.index');
 
     Route::get('/payroll', fn () => view('app.page', [

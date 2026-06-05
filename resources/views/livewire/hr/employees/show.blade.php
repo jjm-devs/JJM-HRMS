@@ -305,18 +305,10 @@
 
             <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
                 <x-ui.card title="Salary Components">
-                    <div class="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <div class="mb-5 grid gap-4 sm:grid-cols-3">
                         <div>
                             <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Pay Level</p>
                             <p class="mt-1 text-sm font-medium text-slate-900">{{ $salaryStructure?->payLevel?->name ?? '-' }}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Effective</p>
-                            <p class="mt-1 text-sm font-medium text-slate-900">
-                                {{ $salaryStructure?->effective_from?->format('d M Y') ?? '-' }}
-                                <span class="text-slate-400">to</span>
-                                {{ $salaryStructure?->effective_to?->format('d M Y') ?? 'Present' }}
-                            </p>
                         </div>
                         <div>
                             <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Gross Earnings</p>
@@ -372,7 +364,9 @@
                                 <x-ui.table.td>
                                     <div class="flex items-center gap-1">
                                         <x-ui.button wire:click="editSalaryComponent({{ $salaryComponentItem->id }})" variant="ghost" size="sm">Edit</x-ui.button>
-                                        <x-ui.button wire:click="deleteSalaryComponent({{ $salaryComponentItem->id }})" variant="ghost" size="sm">Delete</x-ui.button>
+                                        @if ($salaryComponentItem->status === 'active')
+                                            <x-ui.button wire:click="removeSalaryComponent({{ $salaryComponentItem->id }})" variant="ghost" size="sm">Remove</x-ui.button>
+                                        @endif
                                     </div>
                                 </x-ui.table.td>
                             </tr>
@@ -397,22 +391,6 @@
                             :options="$payLevelOptions"
                             :error="$errors->first('salaryComponentForm.pay_level_id')"
                         />
-
-                        <div class="grid gap-4 sm:grid-cols-2">
-                            <x-ui.input
-                                wire:model="salaryComponentForm.effective_from"
-                                type="date"
-                                label="Effective From"
-                                :error="$errors->first('salaryComponentForm.effective_from')"
-                            />
-
-                            <x-ui.input
-                                wire:model="salaryComponentForm.effective_to"
-                                type="date"
-                                label="Effective To"
-                                :error="$errors->first('salaryComponentForm.effective_to')"
-                            />
-                        </div>
 
                         <x-ui.select
                             wire:model="salaryComponentForm.salary_structure_status"
@@ -575,38 +553,122 @@
                     </div>
                 </div>
             </x-ui.card>
+        </div>
+    @elseif ($activeTab === 'qualifications')
+        <div class="mt-5 space-y-5">
+            @if (session('qualification_status'))
+                <x-ui.alert variant="success">{{ session('qualification_status') }}</x-ui.alert>
+            @endif
 
-            <x-ui.card title="Salary Revision History">
-                <x-ui.table :headers="['Effective', 'Pay Level', 'Basic Salary', 'Grade Pay', 'Components', 'Status']">
-                    @forelse ($employee->salaryStructures->sortByDesc('id') as $revision)
+            <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
+                <x-ui.table :headers="['Qualification', 'Institution', 'Year', 'Result', 'Status', '']">
+                    @forelse ($employee->qualifications->sortByDesc('year_of_passing') as $qualification)
                         <tr class="transition hover:bg-slate-50">
                             <x-ui.table.td>
-                                {{ $revision->effective_from?->format('d M Y') ?? '-' }}
-                                <span class="text-slate-400">to</span>
-                                {{ $revision->effective_to?->format('d M Y') ?? 'Present' }}
+                                <span class="font-medium text-slate-900">{{ $qualification->qualification }}</span>
+                                @if ($qualification->specialization)
+                                    <p class="text-xs text-slate-400">{{ $qualification->specialization }}</p>
+                                @endif
                             </x-ui.table.td>
-                            <x-ui.table.td>{{ $revision->payLevel?->name ?? '-' }}</x-ui.table.td>
-                            <x-ui.table.td>{{ number_format((float) $revision->basic_salary, 2) }}</x-ui.table.td>
-                            <x-ui.table.td>{{ $revision->grade_pay !== null ? number_format((float) $revision->grade_pay, 2) : '-' }}</x-ui.table.td>
-                            <x-ui.table.td>{{ $revision->employeeSalaryComponents->count() }}</x-ui.table.td>
                             <x-ui.table.td>
-                                <x-ui.badge :variant="$revision->status === 'active' ? 'success' : 'default'">
-                                    {{ $salaryStatusOptions[$revision->status] ?? ucfirst($revision->status) }}
+                                <span>{{ $qualification->institution ?: '-' }}</span>
+                                @if ($qualification->board_or_university)
+                                    <p class="text-xs text-slate-400">{{ $qualification->board_or_university }}</p>
+                                @endif
+                            </x-ui.table.td>
+                            <x-ui.table.td>{{ $qualification->year_of_passing ?: '-' }}</x-ui.table.td>
+                            <x-ui.table.td>{{ $qualification->percentage_or_cgpa ?: '-' }}</x-ui.table.td>
+                            <x-ui.table.td>
+                                <x-ui.badge :variant="$qualification->status === 'active' ? 'success' : 'default'">
+                                    {{ $qualificationStatusOptions[$qualification->status] ?? ucfirst($qualification->status) }}
                                 </x-ui.badge>
+                            </x-ui.table.td>
+                            <x-ui.table.td>
+                                <div class="flex items-center gap-1">
+                                    <x-ui.button wire:click="editQualification({{ $qualification->id }})" variant="ghost" size="sm">Edit</x-ui.button>
+                                    @if ($qualification->status === 'active')
+                                        <x-ui.button wire:click="removeQualification({{ $qualification->id }})" variant="ghost" size="sm">Remove</x-ui.button>
+                                    @endif
+                                </div>
                             </x-ui.table.td>
                         </tr>
                     @empty
                         <tr>
                             <td colspan="6">
                                 <x-ui.empty-state
-                                    title="No salary revisions"
-                                    description="Salary revisions will appear after salary components are saved."
+                                    title="No qualifications added"
+                                    description="Add academic and professional qualification details."
                                 />
                             </td>
                         </tr>
                     @endforelse
                 </x-ui.table>
-            </x-ui.card>
+
+                <x-ui.card :title="$editingQualificationId ? 'Edit Qualification' : 'Add Qualification'">
+                    <form wire:submit="saveQualification" class="space-y-4">
+                        <x-ui.input
+                            wire:model="qualificationForm.qualification"
+                            label="Qualification"
+                            placeholder="B.Tech, MBA, Diploma"
+                            :error="$errors->first('qualificationForm.qualification')"
+                            required
+                        />
+
+                        <x-ui.input
+                            wire:model="qualificationForm.specialization"
+                            label="Specialization"
+                            placeholder="Civil Engineering, Finance"
+                            :error="$errors->first('qualificationForm.specialization')"
+                        />
+
+                        <x-ui.input
+                            wire:model="qualificationForm.institution"
+                            label="Institution"
+                            :error="$errors->first('qualificationForm.institution')"
+                        />
+
+                        <x-ui.input
+                            wire:model="qualificationForm.board_or_university"
+                            label="Board or University"
+                            :error="$errors->first('qualificationForm.board_or_university')"
+                        />
+
+                        <div class="grid gap-4 sm:grid-cols-2">
+                            <x-ui.input
+                                wire:model="qualificationForm.year_of_passing"
+                                type="number"
+                                label="Passing Year"
+                                :error="$errors->first('qualificationForm.year_of_passing')"
+                            />
+
+                            <x-ui.input
+                                wire:model="qualificationForm.percentage_or_cgpa"
+                                label="Percentage or CGPA"
+                                placeholder="72% or 8.1 CGPA"
+                                :error="$errors->first('qualificationForm.percentage_or_cgpa')"
+                            />
+                        </div>
+
+                        <x-ui.select
+                            wire:model="qualificationForm.status"
+                            label="Status"
+                            :options="$qualificationStatusOptions"
+                            :error="$errors->first('qualificationForm.status')"
+                            required
+                        />
+
+                        <div class="flex items-center justify-end gap-2">
+                            @if ($editingQualificationId)
+                                <x-ui.button wire:click="resetQualificationForm" variant="outline">Cancel</x-ui.button>
+                            @endif
+
+                            <x-ui.button type="submit" variant="primary">
+                                {{ $editingQualificationId ? 'Update Qualification' : 'Add Qualification' }}
+                            </x-ui.button>
+                        </div>
+                    </form>
+                </x-ui.card>
+            </div>
         </div>
     @else
         <div class="mt-5">
