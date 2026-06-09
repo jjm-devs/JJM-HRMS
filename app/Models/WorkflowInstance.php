@@ -22,6 +22,13 @@ class WorkflowInstance extends Model
         'completed_at',
     ];
 
+    protected function casts(): array
+    {
+        return [
+            'completed_at' => 'datetime',
+        ];
+    }
+
     public function workflowable(): MorphTo
     {
         return $this->morphTo();

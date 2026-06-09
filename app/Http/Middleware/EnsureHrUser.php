@@ -15,7 +15,7 @@ class EnsureHrUser
             return redirect()->route('login');
         }
 
-        if (! Auth::user()->is_hr) {
+        if (! Auth::user()->canAccessPayrollWorkflow()) {
             Auth::logout();
 
             $request->session()->invalidate();
@@ -23,7 +23,7 @@ class EnsureHrUser
 
             return redirect()
                 ->route('login')
-                ->with('status', 'Please sign in with an HR account.');
+                ->with('status', 'Please sign in with an HR or payroll approver account.');
         }
 
         return $next($request);

@@ -369,14 +369,44 @@
             </div>
 
             <x-ui.table :headers="['Employee', 'Leave Type', 'Period', 'Days', 'Requested On', 'Status', '']">
-                <tr>
-                    <td colspan="7">
-                        <x-ui.empty-state
-                            title="Leave request workflow will be added next"
-                            description="Employee-submitted requests will appear here with approval and rejection actions."
-                        />
-                    </td>
-                </tr>
+                @forelse ($employeeLeaveRequests as $request)
+                    <tr class="transition hover:bg-slate-50">
+                        <x-ui.table.td>
+                            <span class="font-medium text-slate-900">{{ $request->employee?->full_name ?? '-' }}</span>
+                            <p class="text-xs text-slate-400">{{ $request->employee?->employee_code ?? '-' }}</p>
+                        </x-ui.table.td>
+                        <x-ui.table.td>{{ $request->leaveType?->name ?? '-' }}</x-ui.table.td>
+                        <x-ui.table.td>
+                            {{ $request->start_date?->format('d M Y') ?? '-' }}
+                            <span class="text-slate-400">to</span>
+                            {{ $request->end_date?->format('d M Y') ?? '-' }}
+                        </x-ui.table.td>
+                        <x-ui.table.td>
+                            {{ number_format((float) $request->total_days, 2) }}
+                            @if ($request->documents->isNotEmpty())
+                                <p class="text-xs text-slate-400">{{ $request->documents->count() }} attachment(s)</p>
+                            @endif
+                        </x-ui.table.td>
+                        <x-ui.table.td>{{ $request->created_at?->format('d M Y') ?? '-' }}</x-ui.table.td>
+                        <x-ui.table.td>
+                            <x-ui.badge :variant="$request->status === 'approved' ? 'success' : ($request->status === 'rejected' ? 'danger' : 'warning')">
+                                {{ str_replace('_', ' ', ucfirst($request->status)) }}
+                            </x-ui.badge>
+                        </x-ui.table.td>
+                        <x-ui.table.td>
+                            <span class="text-xs text-slate-400">Review flow pending</span>
+                        </x-ui.table.td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="7">
+                            <x-ui.empty-state
+                                title="No employee leave requests"
+                                description="Employee-submitted requests will appear here."
+                            />
+                        </td>
+                    </tr>
+                @endforelse
             </x-ui.table>
         </div>
     @endif

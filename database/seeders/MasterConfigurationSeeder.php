@@ -158,9 +158,23 @@ class MasterConfigurationSeeder extends Seeder
         }
 
         foreach ([
-            ['LEAVE_APPROVAL', 'Leave Approval', 'leave', ['Reporting Officer Review', 'HR Approval']],
-            ['TRANSFER_APPROVAL', 'Transfer Approval', 'transfer', ['HR Review', 'Department Approval']],
-            ['PAYROLL_APPROVAL', 'Payroll Approval', 'payroll', ['HR Preparation', 'Final Approval']],
+            ['LEAVE_APPROVAL', 'Leave Approval', 'leave', [
+                ['Reporting Officer Review', 'reporting_officer', 'approve'],
+                ['HR Approval', 'hr', 'approve'],
+            ]],
+            ['TRANSFER_APPROVAL', 'Transfer Approval', 'transfer', [
+                ['HR Review', 'hr', 'approve'],
+                ['Department Approval', 'department_admin', 'approve'],
+            ]],
+            ['PAYROLL_APPROVAL', 'Payroll Approval', 'payroll', [
+                ['HR', 'hr', 'submit'],
+                ['SPO FM', 'spo_fm', 'approve'],
+                ['Deputy MD', 'deputy_md', 'approve'],
+                ['FA', 'fa', 'approve'],
+                ['Addt Chief Eng', 'addt_chief_eng', 'approve'],
+                ['Addt. MD', 'addt_md', 'approve'],
+                ['MD', 'md', 'approve'],
+            ]],
         ] as [$code, $name, $module, $steps]) {
             $workflow = WorkflowDefinition::query()->updateOrCreate(
                 ['code' => $code],
@@ -171,7 +185,7 @@ class MasterConfigurationSeeder extends Seeder
                 ],
             );
 
-            foreach ($steps as $index => $stepName) {
+            foreach ($steps as $index => [$stepName, $role, $actionType]) {
                 WorkflowStep::query()->updateOrCreate(
                     [
                         'workflow_definition_id' => $workflow->id,
@@ -179,8 +193,8 @@ class MasterConfigurationSeeder extends Seeder
                     ],
                     [
                         'name' => $stepName,
-                        'role' => $index === 0 ? 'hr' : 'approver',
-                        'action_type' => 'approve',
+                        'role' => $role,
+                        'action_type' => $actionType,
                         'sla_hours' => 48,
                         'status' => 'active',
                     ],

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Users\Schemas;
 
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Schema;
@@ -33,6 +34,13 @@ class UserForm
                     ->label('HR Panel Access')
                     ->helperText('Allows access to the HR working panel. If both access toggles are off, the user is treated as an employee.')
                     ->required(),
+                Select::make('roles')
+                    ->label('Workflow Roles')
+                    ->relationship('roles', 'name', fn ($query) => $query->where('status', 'active')->orderBy('name'))
+                    ->multiple()
+                    ->preload()
+                    ->searchable()
+                    ->helperText('Assign payroll approval roles such as SPO FM, FA, Addt. MD, or MD.'),
             ]);
     }
 }

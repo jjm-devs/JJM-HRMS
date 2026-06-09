@@ -126,6 +126,6 @@ class LeaveRegisterTest extends TestCase
             ->assertSee('Under Review')
             ->assertSee('Approved')
             ->assertSee('Rejected')
-            ->assertSee('Leave request workflow will be added next');
+            ->assertSee('No employee leave requests');
     }
 }

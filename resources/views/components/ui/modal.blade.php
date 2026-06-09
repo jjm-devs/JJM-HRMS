@@ -2,6 +2,7 @@
     'show'  => false,
     'title' => null,
     'size'  => 'md',  // sm | md | lg | xl
+    'name' => null,
 ])
 
 @php
@@ -16,8 +17,8 @@ $sizes = [
 <div
     x-data="{ open: @js($show) }"
     x-show="open"
-    x-on:open-modal.window="open = true"
-    x-on:close-modal.window="open = false"
+    x-on:open-modal.window="if (! @js($name) || $event.detail?.name === @js($name)) open = true"
+    x-on:close-modal.window="if (! @js($name) || $event.detail?.name === @js($name)) open = false"
     x-transition:enter="transition ease-out duration-150"
     x-transition:enter-start="opacity-0"
     x-transition:enter-end="opacity-100"
@@ -57,5 +58,11 @@ $sizes = [
         <div class="p-5">
             {{ $slot }}
         </div>
+
+        @isset($footer)
+            <div class="flex justify-end gap-3 border-t border-slate-100 px-5 py-4">
+                {{ $footer }}
+            </div>
+        @endisset
     </div>
 </div>

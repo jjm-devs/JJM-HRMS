@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\WorkflowSteps\Schemas;
 
+use App\Models\Role;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
@@ -26,8 +27,7 @@ class WorkflowStepForm
                     ->default(1)
                     ->required(),
                 Select::make('role')
-                    ->options([
-                        'hr' => 'HR',
+                    ->options(Role::LABELS + [
                         'reporting_officer' => 'Reporting Officer',
                         'department_admin' => 'Department Admin',
                         'district_admin' => 'District Admin',

@@ -3,6 +3,8 @@
 use App\Http\Middleware\EnsureHrUser;
 use App\Http\Middleware\EnsurePasswordIsChanged;
 use App\Models\Employee;
+use App\Models\PayrollBatch;
+use App\Models\PayrollItem;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware([EnsureHrUser::class, EnsurePasswordIsChanged::class])->group(function () {
@@ -49,6 +51,30 @@ Route::middleware([EnsureHrUser::class, EnsurePasswordIsChanged::class])->group(
         'title' => 'Payroll',
     ]))->name('hr.payroll.index');
 
+    Route::get('/payroll/batch/{batch}', fn (PayrollBatch $batch) => view('app.page', [
+        'livewireComponent' => 'hr.payroll.batch-detail',
+        'livewireParams' => ['batch' => $batch],
+        'title' => $batch->batch_number,
+    ]))->name('hr.payroll.batch.detail');
+
+    Route::get('/payroll/batch/{batch}/employee/{item}/leave-review', fn (
+        PayrollBatch $batch,
+        PayrollItem $item,
+    ) => view('app.page', [
+        'livewireComponent' => 'hr.payroll.leave-review',
+        'livewireParams' => ['batch' => $batch, 'item' => $item],
+        'title' => 'Leave Review',
+    ]))->name('hr.payroll.leave.review');
+
+    Route::get('/payroll/batch/{batch}/employee/{item}/adjustments', fn (
+        PayrollBatch $batch,
+        PayrollItem $item,
+    ) => view('app.page', [
+        'livewireComponent' => 'hr.payroll.item-adjustment',
+        'livewireParams'    => ['batch' => $batch, 'item' => $item],
+        'title'             => 'Manual Adjustments',
+    ]))->name('hr.payroll.item.adjustments');
+
     Route::get('/documents', fn () => view('app.page', [
         'livewireComponent' => 'hr.documents.index',
         'title' => 'Documents',
@@ -63,4 +89,5 @@ Route::middleware([EnsureHrUser::class, EnsurePasswordIsChanged::class])->group(
         'livewireComponent' => 'hr.reports.index',
         'title' => 'Reports',
     ]))->name('hr.reports.index');
+
 });

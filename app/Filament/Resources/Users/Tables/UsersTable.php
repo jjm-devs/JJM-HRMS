@@ -37,6 +37,11 @@ class UsersTable
                 IconColumn::make('is_hr')
                     ->label('HR')
                     ->boolean(),
+                TextColumn::make('roles.name')
+                    ->label('Workflow Roles')
+                    ->badge()
+                    ->separator(',')
+                    ->toggleable(),
             ])
             ->filters([
                 //

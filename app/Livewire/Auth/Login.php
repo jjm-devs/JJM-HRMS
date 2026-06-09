@@ -34,6 +34,12 @@ class Login extends Component
             return;
         }
 
+        if (Auth::user()->canAccessPayrollWorkflow()) {
+            $this->redirectRoute('hr.payroll.index', navigate: true);
+
+            return;
+        }
+
         if (! Auth::user()->is_admin) {
             $this->redirectRoute('employee.dashboard', navigate: true);
         }
@@ -85,6 +91,12 @@ class Login extends Component
 
         if (Auth::user()->is_hr) {
             $this->redirectRoute('hr.dashboard', navigate: true);
+
+            return;
+        }
+
+        if (Auth::user()->canAccessPayrollWorkflow()) {
+            $this->redirectRoute('hr.payroll.index', navigate: true);
 
             return;
         }

@@ -6,6 +6,7 @@ use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -46,6 +47,56 @@ class User extends Authenticatable implements FilamentUser
     public function canAccessPanel(Panel $panel): bool
     {
         return $panel->getId() === 'admin' && $this->is_admin === true;
+    }
+
+    public function roles(): BelongsToMany
+    {
+        return $this->belongsToMany(Role::class)->withTimestamps();
+    }
+
+    public function hasRole(string $code): bool
+    {
+        if ($code === 'hr' && $this->is_hr) {
+            return true;
+        }
+
+        if ($this->relationLoaded('roles')) {
+            return $this->roles
+                ->where('status', 'active')
+                ->contains('code', $code);
+        }
+
+        return $this->roles()
+            ->where('code', $code)
+            ->where('status', 'active')
+            ->exists();
+    }
+
+    public function hasAnyRole(array $codes): bool
+    {
+        foreach ($codes as $code) {
+            if ($this->hasRole($code)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function canAccessPayrollWorkflow(): bool
+    {
+        return $this->is_hr || $this->hasAnyRole(Role::PAYROLL_ROLE_CODES);
+    }
+
+    public function primaryPayrollRole(): ?string
+    {
+        foreach (Role::PAYROLL_ROLE_CODES as $role) {
+            if ($this->hasRole($role)) {
+                return $role;
+            }
+        }
+
+        return null;
     }
 
     public function hrScopeAssignments(): HasMany

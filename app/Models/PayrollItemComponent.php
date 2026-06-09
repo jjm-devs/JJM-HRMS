@@ -17,7 +17,15 @@ class PayrollItemComponent extends Model
         'type',
         'amount',
         'calculation_details',
+        'is_manually_adjusted',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'is_manually_adjusted' => 'boolean',
+        ];
+    }
 
     public function payrollItem(): BelongsTo
     {

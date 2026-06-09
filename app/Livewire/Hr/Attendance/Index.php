@@ -25,10 +25,13 @@ class Index extends Component
 
     // Leave register tab uses a date range
     public string $dateFrom = '';
+
     public string $dateTo = '';
 
     public string $search = '';
+
     public string $filterLeaveType = '';
+
     public ?int $editingLeaveId = null;
 
     public array $leaveForm = [
@@ -161,6 +164,7 @@ class Index extends Component
 
         return view('livewire.hr.attendance.index', [
             'calendarDays' => $this->calendarDays($calendarStart, $calendarEnd, $holidaysByDate, $leaveDaysByDate),
+            'employeeLeaveRequests' => $this->employeeLeaveRequests(),
             'employeeOptions' => $this->employeeOptions(),
             'leaveRecords' => $leaveRecords,
             'leaveRequestSummary' => $leaveRequestSummary,
@@ -175,6 +179,21 @@ class Index extends Component
             'tabs' => $this->tabs(),
             'weekdays' => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
         ]);
+    }
+
+    private function validateLeaveForm(): array
+    {
+        $validated = $this->validate([
+            'leaveForm.employee_id' => ['required', 'integer', 'exists:employees,id'],
+            'leaveForm.leave_type_id' => ['required', 'integer', 'exists:leave_types,id'],
+            'leaveForm.start_date' => ['required', 'date'],
+            'leaveForm.end_date' => ['required', 'date', 'after_or_equal:leaveForm.start_date'],
+            'leaveForm.reason' => ['nullable', 'string', 'max:2000'],
+            'leaveForm.contact_during_leave' => ['nullable', 'string', 'max:255'],
+            'leaveForm.status' => ['required', Rule::in(array_keys($this->leaveStatusOptions()))],
+        ])['leaveForm'];
+
+        return array_map(fn ($value) => $value === '' ? null : $value, $validated);
     }
 
     // -------------------------------------------------------------------------
@@ -285,6 +304,10 @@ class Index extends Component
             ->with(['employee.departmentStream', 'employee.designation', 'leaveType'])
             ->whereDate('start_date', '<=', $to)
             ->whereDate('end_date', '>=', $from)
+            ->when(
+                $this->leaveApplicationHasColumn('source'),
+                fn ($query) => $query->where('source', LeaveApplication::SOURCE_MANUAL_HR)
+            )
             ->when($this->filterLeaveType !== '', fn ($q) => $q->where('leave_type_id', $this->filterLeaveType))
             ->when($this->search !== '', function ($query): void {
                 $query->whereHas('employee', function ($query): void {
@@ -362,6 +385,22 @@ class Index extends Component
             'rejected' => (clone $base())->where('status', LeaveApplication::STATUS_REJECTED)->count(),
             'under_review' => (clone $base())->where('status', LeaveApplication::STATUS_UNDER_REVIEW)->count(),
         ];
+    }
+
+    private function employeeLeaveRequests(): Collection
+    {
+        if (! $this->leaveApplicationHasColumn('source')) {
+            return collect();
+        }
+
+        $query = LeaveApplication::query()
+            ->with(['employee', 'leaveType', 'documents'])
+            ->where('source', LeaveApplication::SOURCE_EMPLOYEE_REQUEST)
+            ->latest('id');
+
+        $this->scope->applyToLeaveQuery($query);
+
+        return $query->get();
     }
 
     // -------------------------------------------------------------------------
