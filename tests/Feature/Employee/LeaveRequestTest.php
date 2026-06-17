@@ -2,8 +2,12 @@
 
 namespace Tests\Feature\Employee;
 
+use App\Livewire\Employee\Attendance\Index as EmployeeAttendanceIndex;
 use App\Livewire\Employee\Leave\Index as EmployeeLeaveIndex;
+use App\Livewire\Hr\Documents\Index as HrDocumentsIndex;
 use App\Livewire\Hr\Attendance\Index as HrAttendanceIndex;
+use App\Models\Document;
+use App\Models\DocumentAccessLog;
 use App\Models\Employee;
 use App\Models\LeaveApplication;
 use App\Models\LeaveType;
@@ -94,6 +98,62 @@ class LeaveRequestTest extends TestCase
             ->assertSee('Leave Request Employee')
             ->assertSee('Medical Leave')
             ->assertSee('Submitted')
-            ->assertSee('2 attachment(s)');
+            ->assertSee('prescription.jpg')
+            ->assertSee('medical-note.pdf');
+
+        Livewire::test(HrAttendanceIndex::class)
+            ->call('printLeaveApplication', $leave->id)
+            ->assertFileDownloaded('leave-application-'.$leave->id.'.pdf');
+
+        $printDocument = Document::query()
+            ->where('documentable_type', $leave->getMorphClass())
+            ->where('documentable_id', $leave->id)
+            ->where('title', 'Leave Application Print')
+            ->firstOrFail();
+
+        Storage::disk($printDocument->disk)->assertExists($printDocument->file_path);
+        $this->assertStringStartsWith('%PDF-', Storage::disk($printDocument->disk)->get($printDocument->file_path));
+
+        Livewire::test(HrAttendanceIndex::class)
+            ->call('openApproveLeaveRequestModal', $leave->id)
+            ->set('leaveApprovalRemarks', 'Approved after physical signature.')
+            ->set('signedLeaveDocumentFile', UploadedFile::fake()->image('signed-leave.png')->size(256))
+            ->call('approveSelectedLeaveRequest')
+            ->assertHasNoErrors();
+
+        $leave->refresh();
+        $this->assertSame(LeaveApplication::STATUS_APPROVED, $leave->status);
+        $this->assertSame($hr->id, $leave->approved_by);
+        $this->assertSame(2, $leave->days()->where('status', LeaveApplication::STATUS_APPROVED)->count());
+
+        $signedDocument = Document::query()
+            ->where('documentable_type', $leave->getMorphClass())
+            ->where('documentable_id', $leave->id)
+            ->where('title', 'Signed Leave Application')
+            ->firstOrFail();
+
+        Storage::disk($signedDocument->disk)->assertExists($signedDocument->file_path);
+
+        Livewire::test(HrDocumentsIndex::class)
+            ->assertSee('Signed Leave Application')
+            ->assertSee('Leave Request '.$leave->id)
+            ->call('downloadDocument', $signedDocument->id)
+            ->assertFileDownloaded('signed-leave.png');
+
+        $this->actingAs($employeeUser);
+
+        Livewire::test(EmployeeAttendanceIndex::class)
+            ->call('openLeaveDetail', $leave->id)
+            ->assertSee('Signed Leave Application')
+            ->call('downloadLeaveDocument', $signedDocument->id)
+            ->assertFileDownloaded('signed-leave.png');
+
+        $this->assertGreaterThanOrEqual(
+            2,
+            DocumentAccessLog::query()
+                ->where('document_id', $signedDocument->id)
+                ->where('action', 'downloaded')
+                ->count(),
+        );
     }
 }

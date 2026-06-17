@@ -8,6 +8,7 @@ use App\Models\LeaveType;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonPeriod;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
@@ -100,15 +101,19 @@ class Index extends Component
     private function storeAttachments(LeaveApplication $leave): void
     {
         foreach ($this->attachments as $attachment) {
-            $path = $attachment->store('leave-requests/'.$leave->id);
+            $disk = config('filesystems.default', 'local');
+            $fileName = $attachment->getClientOriginalName();
+            $mimeType = $attachment->getMimeType();
+            $path = $attachment->store('leave-requests/'.$leave->id, $disk);
+            $fileSize = Storage::disk($disk)->size($path);
 
             $leave->documents()->create([
-                'title' => $attachment->getClientOriginalName(),
-                'file_name' => $attachment->getClientOriginalName(),
+                'title' => $fileName,
+                'file_name' => $fileName,
                 'file_path' => $path,
-                'disk' => config('filesystems.default', 'local'),
-                'mime_type' => $attachment->getMimeType(),
-                'file_size' => $attachment->getSize(),
+                'disk' => $disk,
+                'mime_type' => $mimeType,
+                'file_size' => $fileSize,
                 'status' => 'submitted',
                 'uploaded_by' => Auth::id(),
             ]);

@@ -26,6 +26,8 @@ class Index extends Component
     public string $batchType    = 'regular';
     public string $disbursementPct = '100';
 
+    public string $departmentStreamId = '';
+
     public function mount(): void
     {
         $this->filterMonth = now()->format('Y-m');
@@ -50,63 +52,46 @@ class Index extends Component
 
     public function generate(): void
     {
-        Log::info('generate called');
         abort_unless(auth()->user()?->hasRole('hr'), 403);
-        Log::info('generate passed abort');
 
         try {
             $this->validate([
-                'periodFrom'      => ['required', 'date'],
-                'periodTo'        => ['required', 'date', 'after:periodFrom'],
-                'paymentDate'     => ['nullable', 'date'],
-                'orgUnitId'       => ['nullable', 'integer', 'exists:org_units,id'],
-                'batchType'       => ['required', 'in:regular,partial'],
-                'disbursementPct' => $this->batchType === 'partial'
+                'periodFrom'         => ['required', 'date'],
+                'periodTo'           => ['required', 'date', 'after:periodFrom'],
+                'paymentDate'        => ['nullable', 'date'],
+                'orgUnitId'          => ['required', 'integer', 'exists:org_units,id'],
+                'departmentStreamId' => ['nullable', 'integer', 'exists:department_streams,id'],
+                'batchType'          => ['required', 'in:regular,partial'],
+                'disbursementPct'    => $this->batchType === 'partial'
                     ? ['required', 'numeric', 'min:1', 'max:99']
                     : [],
             ]);
-            Log::info('validation passed');
 
             $pct = $this->batchType === 'partial'
                 ? (float) $this->disbursementPct
                 : 100.00;
 
-            Log::info('calling service', [
-                'periodFrom'  => $this->periodFrom,
-                'periodTo'    => $this->periodTo,
-                'paymentDate' => $this->paymentDate,
-                'orgUnitId'   => $this->orgUnitId,
-                'batchType'   => $this->batchType,
-                'pct'         => $pct,
-            ]);
 
             $batch = app(PayrollGenerationService::class)->generate(
                 periodFrom:             $this->periodFrom,
                 periodTo:               $this->periodTo,
                 paymentDate:            $this->paymentDate ?: null,
                 orgUnitId:              $this->orgUnitId ? (int) $this->orgUnitId : null,
+                departmentStreamId:     $this->departmentStreamId ? (int) $this->departmentStreamId : null,
                 batchType:              $this->batchType,
                 defaultDisbursementPct: $pct,
             );
 
-            Log::info('service done', ['batch' => $batch->batch_number]);
 
             $this->closeGenerateModal();
             session()->flash('status', "Batch {$batch->batch_number} generated with {$batch->items()->count()} employees.");
             $this->resetPage();
 
         } catch (\Illuminate\Validation\ValidationException $e) {
-            Log::warning('validation failed', $e->validator->errors()->toArray());
             $this->dispatch('open-modal', name: 'generate-payroll');
             throw $e;
 
         } catch (\Throwable $e) {
-            Log::error('payroll generate exception', [
-                'message' => $e->getMessage(),
-                'file'    => $e->getFile(),
-                'line'    => $e->getLine(),
-                'trace'   => $e->getTraceAsString(),
-            ]);
             $this->addError('generate', 'Failed to generate payroll: ' . $e->getMessage());
             $this->dispatch('open-modal', name: 'generate-payroll');
         }
@@ -160,14 +145,17 @@ class Index extends Component
         $batches = $batchQuery->paginate(15);
 
         return view('livewire.hr.payroll.index', [
-            'batches'       => $batches,
-            'summary'       => $this->summary($scopedIds),
-            'orgUnits'      => OrgUnit::query()
+            'batches'          => $batches,
+            'summary'          => $this->summary($scopedIds),
+            'orgUnits'         => OrgUnit::query()
                 ->where('status', 'active')
                 ->when($scopedIds !== null, fn ($q) => $q->whereIn('id', $scopedIds))
                 ->orderBy('name')
                 ->pluck('name', 'id'),
-            'statusOptions' => $this->statusOptions(),
+            'departmentStreams' => \App\Models\DepartmentStream::where('status', 'active')
+                ->orderBy('name')
+                ->pluck('name', 'id'),
+            'statusOptions'    => $this->statusOptions(),
             'canGeneratePayroll' => auth()->user()?->hasRole('hr') ?? false,
         ]);
     }
@@ -176,12 +164,20 @@ class Index extends Component
 
     private function prefillPeriod(): void
     {
-        $this->periodFrom      = now()->subMonth()->setDay(25)->format('Y-m-d');
-        $this->periodTo        = now()->setDay(25)->format('Y-m-d');
-        $this->paymentDate     = now()->endOfMonth()->format('Y-m-d');
-        $this->orgUnitId       = '';
-        $this->batchType       = 'regular';
-        $this->disbursementPct = '100';
+        $scopeService = app(\App\Services\Hr\HrScopeService::class);
+        $scopedIds    = $scopeService->scopedOrgUnitIds();
+
+        $firstStream = \App\Models\DepartmentStream::where('status', 'active')
+            ->orderBy('name')
+            ->first();
+
+        $this->periodFrom         = now()->subMonth()->setDay(25)->format('Y-m-d');
+        $this->periodTo           = now()->setDay(25)->format('Y-m-d');
+        $this->paymentDate        = now()->endOfMonth()->format('Y-m-d');
+        $this->orgUnitId          = $scopedIds?->first() ? (string) $scopedIds->first() : '';
+        $this->departmentStreamId = $firstStream ? (string) $firstStream->id : '';
+        $this->batchType          = 'regular';
+        $this->disbursementPct    = '100';
     }
 
     private function summary(?object $scopedIds): array

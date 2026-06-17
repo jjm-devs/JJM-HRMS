@@ -24,6 +24,9 @@ class HrScopeAssignmentForm
                     ->required()
                     ->searchable()
                     ->preload(),
+                Toggle::make('is_ho')
+                    ->label('Is Head Office HR User')
+                    ->helperText('If enabled, this user will be identified as a Head Office HR user'),
                 Toggle::make('include_child_units')
                     ->label('Include Child Units'),
                 Select::make('department_stream_id')

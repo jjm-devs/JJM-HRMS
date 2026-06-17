@@ -20,12 +20,13 @@ Route::prefix('employee')
 
         Route::get('/attendance', fn () => view('app.page', [
             'livewireComponent' => 'employee.attendance.index',
-            'title' => 'Attendance',
+            'title' => 'Attendance & Leave',
         ]))->name('attendance.index');
 
         Route::get('/leave', fn () => view('app.page', [
-            'livewireComponent' => 'employee.leave.index',
-            'title' => 'Leave',
+            'livewireComponent' => 'employee.attendance.index',
+            'livewireParams' => ['openApply' => true],
+            'title' => 'Attendance & Leave',
         ]))->name('leave.index');
 
         Route::get('/documents', fn () => view('app.page', [

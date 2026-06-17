@@ -2,22 +2,29 @@
 
 namespace App\Livewire\Hr\Attendance;
 
+use App\Models\Document;
+use App\Models\DocumentAccessLog;
 use App\Models\Employee;
 use App\Models\Holiday;
 use App\Models\LeaveApplication;
 use App\Models\LeaveApplicationDay;
 use App\Models\LeaveType;
 use App\Services\Hr\HrScopeService;
+use App\Services\Leave\LeaveApplicationDocumentService;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonPeriod;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 class Index extends Component
 {
+    use WithFileUploads;
+
     public string $activeTab = 'calendar';
 
     // Calendar tab uses a month picker
@@ -43,6 +50,12 @@ class Index extends Component
         'contact_during_leave' => '',
         'status' => 'approved',
     ];
+
+    public ?int $selectedLeaveRequestId = null;
+
+    public string $leaveApprovalRemarks = '';
+
+    public $signedLeaveDocumentFile = null;
 
     private HrScopeService $scope;
 
@@ -131,6 +144,84 @@ class Index extends Component
     public function deleteLeaveRecord(int $leaveId): void
     {
         $this->cancelLeaveRecord($leaveId);
+    }
+
+    public function approveLeaveRequest(int $leaveId): void
+    {
+        $leave = $this->leaveRequestForAction($leaveId);
+
+        abort_unless(
+            in_array($leave->status, [LeaveApplication::STATUS_SUBMITTED, LeaveApplication::STATUS_UNDER_REVIEW], true),
+            403,
+        );
+
+        $this->approveRequest($leave, null);
+
+        session()->flash('leave_status', 'Leave request approved.');
+    }
+
+    public function openApproveLeaveRequestModal(int $leaveId): void
+    {
+        $leave = $this->leaveRequestForAction($leaveId);
+
+        abort_unless(
+            in_array($leave->status, [LeaveApplication::STATUS_SUBMITTED, LeaveApplication::STATUS_UNDER_REVIEW], true),
+            403,
+        );
+
+        $this->selectedLeaveRequestId = $leave->id;
+        $this->leaveApprovalRemarks = $leave->approval_remarks ?? '';
+        $this->signedLeaveDocumentFile = null;
+        $this->resetValidation(['leaveApprovalRemarks', 'signedLeaveDocumentFile']);
+        $this->dispatch('open-modal', name: 'approve-leave-request');
+    }
+
+    public function approveSelectedLeaveRequest(): void
+    {
+        $leave = $this->leaveRequestForAction((int) $this->selectedLeaveRequestId);
+
+        abort_unless(
+            in_array($leave->status, [LeaveApplication::STATUS_SUBMITTED, LeaveApplication::STATUS_UNDER_REVIEW], true),
+            403,
+        );
+
+        $data = $this->validate([
+            'leaveApprovalRemarks' => ['nullable', 'string', 'max:1000'],
+            'signedLeaveDocumentFile' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'],
+        ]);
+
+        $this->approveRequest($leave, $data['leaveApprovalRemarks'] ?: null);
+
+        if ($this->signedLeaveDocumentFile) {
+            $this->storeSignedLeaveDocument($leave, $this->signedLeaveDocumentFile, $data['leaveApprovalRemarks'] ?: null);
+        }
+
+        $this->selectedLeaveRequestId = null;
+        $this->leaveApprovalRemarks = '';
+        $this->signedLeaveDocumentFile = null;
+        $this->dispatch('close-modal', name: 'approve-leave-request');
+        session()->flash('leave_status', 'Leave request approved.');
+    }
+
+    public function printLeaveApplication(int $leaveId)
+    {
+        $leave = $this->leaveRequestForAction($leaveId);
+        $document = app(LeaveApplicationDocumentService::class)->generateApplicationPrint($leave);
+
+        $this->logDocumentAccess($document, 'generated');
+
+        return Storage::disk($document->disk)->download($document->file_path, $document->file_name);
+    }
+
+    public function downloadLeaveRequestDocument(int $documentId)
+    {
+        $document = $this->visibleLeaveDocument($documentId);
+
+        abort_unless(Storage::disk($document->disk)->exists($document->file_path), 404);
+
+        $this->logDocumentAccess($document, 'downloaded');
+
+        return Storage::disk($document->disk)->download($document->file_path, $document->file_name);
     }
 
     public function resetLeaveForm(): void
@@ -401,6 +492,83 @@ class Index extends Component
         $this->scope->applyToLeaveQuery($query);
 
         return $query->get();
+    }
+
+    private function leaveRequestForAction(int $leaveId): LeaveApplication
+    {
+        $query = LeaveApplication::query()
+            ->with(['employee.designation', 'employee.departmentStream', 'leaveType', 'documents'])
+            ->whereKey($leaveId)
+            ->where('source', LeaveApplication::SOURCE_EMPLOYEE_REQUEST);
+
+        app(HrScopeService::class)->applyToLeaveQuery($query);
+
+        return $query->firstOrFail();
+    }
+
+    private function approveRequest(LeaveApplication $leave, ?string $remarks): void
+    {
+        $leave->update([
+            'status' => LeaveApplication::STATUS_APPROVED,
+            'approved_by' => Auth::id(),
+            'approved_at' => now(),
+            'approval_remarks' => $remarks,
+        ]);
+
+        $leave->days()->update([
+            'status' => LeaveApplication::STATUS_APPROVED,
+        ]);
+    }
+
+    private function storeSignedLeaveDocument(LeaveApplication $leave, $file, ?string $remarks): Document
+    {
+        $disk = config('filesystems.default', 'local');
+        $fileName = $file->getClientOriginalName();
+        $mimeType = $file->getMimeType();
+        $path = $file->store("leave-requests/{$leave->id}/signed", $disk);
+        $fileSize = Storage::disk($disk)->size($path);
+
+        $document = new Document([
+            'title' => LeaveApplicationDocumentService::SIGNED_APPLICATION_TITLE,
+            'file_name' => $fileName,
+            'file_path' => $path,
+            'disk' => $disk,
+            'mime_type' => $mimeType,
+            'file_size' => $fileSize,
+            'version' => 1,
+            'status' => 'approved',
+            'uploaded_by' => Auth::id(),
+            'remarks' => $remarks,
+        ]);
+        $document->documentable()->associate($leave);
+        $document->save();
+
+        $this->logDocumentAccess($document, 'uploaded');
+
+        return $document->refresh();
+    }
+
+    private function visibleLeaveDocument(int $documentId): Document
+    {
+        $document = Document::query()
+            ->whereKey($documentId)
+            ->where('documentable_type', (new LeaveApplication())->getMorphClass())
+            ->firstOrFail();
+
+        $this->leaveRequestForAction((int) $document->documentable_id);
+
+        return $document;
+    }
+
+    private function logDocumentAccess(Document $document, string $action): void
+    {
+        DocumentAccessLog::query()->create([
+            'document_id' => $document->id,
+            'user_id' => Auth::id(),
+            'action' => $action,
+            'ip_address' => request()->ip(),
+            'user_agent' => substr((string) request()->userAgent(), 0, 1000),
+        ]);
     }
 
     // -------------------------------------------------------------------------

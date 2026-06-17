@@ -23,6 +23,9 @@ class HrScopeAssignmentsTable
                     ->label('Organization Unit')
                     ->searchable()
                     ->sortable(),
+                IconColumn::make('is_ho')
+                    ->boolean()
+                    ->label('Head Office'),
                 IconColumn::make('include_child_units')
                     ->boolean()
                     ->label('Child Units'),

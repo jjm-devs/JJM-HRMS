@@ -40,6 +40,7 @@ class PayrollGenerationService
         string $periodTo,
         ?string $paymentDate = null,
         ?int $orgUnitId = null,
+        ?int $departmentStreamId = null,
         string $batchType = 'regular',
         float $defaultDisbursementPct = 100.00,
     ): PayrollBatch {
@@ -67,6 +68,10 @@ class PayrollGenerationService
             $employeeQuery->where('org_unit_id', $orgUnitId);
         }
 
+        if ($departmentStreamId !== null) {
+            $employeeQuery->where('department_stream_id', $departmentStreamId);
+        }
+
         $employees = $employeeQuery->get();
 
         // ── load all relevant leave applications in one query ─────────────────
@@ -76,7 +81,7 @@ class PayrollGenerationService
         $balanceMap = $this->buildBalanceMap($employees->pluck('id'), $from);
 
         return DB::transaction(function () use (
-            $from, $to, $paymentDate, $orgUnitId,
+            $from, $to, $paymentDate, $orgUnitId, $departmentStreamId,
             $batchType, $defaultDisbursementPct,
             $employees, $totalWorkingDays, $leaveMap, $balanceMap
         ) {
@@ -88,6 +93,7 @@ class PayrollGenerationService
                 'period_to'                => $to->toDateString(),
                 'payment_date'             => $paymentDate,
                 'org_unit_id'              => $orgUnitId,
+                'department_stream_id'     => $departmentStreamId,
                 'generated_by'             => Auth::id(),
                 'status'                   => 'draft',
             ]);

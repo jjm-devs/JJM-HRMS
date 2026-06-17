@@ -19,6 +19,13 @@ class Payslip extends Model
         'status',
     ];
 
+    protected function casts(): array
+    {
+        return [
+            'generated_at' => 'datetime',
+        ];
+    }
+
     public function payrollItem(): BelongsTo
     {
         return $this->belongsTo(PayrollItem::class);

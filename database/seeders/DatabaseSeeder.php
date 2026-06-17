@@ -7,6 +7,7 @@ use App\Models\DepartmentStream;
 use App\Models\Designation;
 use App\Models\Employee;
 use App\Models\EmploymentType;
+use App\Models\HrScopeAssignment;
 use App\Models\OrgUnit;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
@@ -34,7 +35,7 @@ class DatabaseSeeder extends Seeder
             ],
         );
 
-        User::query()->updateOrCreate(
+        $hrUser = User::query()->updateOrCreate(
             ['email' => 'hr@jjmbrain.local'],
             [
                 'name' => 'HR User',
@@ -118,6 +119,30 @@ class DatabaseSeeder extends Seeder
             ->where('type', 'sub_division')
             ->orderBy('name')
             ->first();
+
+        $headOffice = OrgUnit::query()
+            ->where('type', 'head_office')
+            ->orderBy('name')
+            ->first();
+
+        if ($headOffice) {
+            HrScopeAssignment::query()->updateOrCreate(
+                [
+                    'user_id' => $hrUser->id,
+                    'org_unit_id' => $headOffice->id,
+                ],
+                [
+                    'is_ho' => true,
+                    'include_child_units' => true,
+                    'can_view' => true,
+                    'can_create' => true,
+                    'can_update' => true,
+                    'can_delete' => true,
+                    'can_approve' => true,
+                    'status' => 'active',
+                ],
+            );
+        }
 
         Employee::query()->updateOrCreate(
             ['employee_code' => 'EMP-2026-00001'],

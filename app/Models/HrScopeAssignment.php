@@ -13,6 +13,7 @@ class HrScopeAssignment extends Model
     protected $fillable = [
         'user_id',
         'org_unit_id',
+        'is_ho',
         'department_stream_id',
         'employment_type_id',
         'include_child_units',
@@ -27,6 +28,7 @@ class HrScopeAssignment extends Model
     protected function casts(): array
     {
         return [
+            'is_ho' => 'boolean',
             'include_child_units' => 'boolean',
             'can_view' => 'boolean',
             'can_create' => 'boolean',

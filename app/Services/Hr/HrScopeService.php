@@ -4,6 +4,7 @@ namespace App\Services\Hr;
 
 use App\Models\HrScopeAssignment;
 use App\Models\OrgUnit;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -28,6 +29,22 @@ class HrScopeService
     public function isUnrestricted(): bool
     {
         return $this->assignments()->isEmpty();
+    }
+
+    public function isHeadOfficeHr(?User $user = null): bool
+    {
+        $user ??= Auth::user();
+
+        if (! $user || ! $user->hasRole('hr')) {
+            return false;
+        }
+
+        return HrScopeAssignment::query()
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->where('can_view', true)
+            ->where('is_ho', true)
+            ->exists();
     }
 
     public function scopedOrgUnitIds(): ?Collection

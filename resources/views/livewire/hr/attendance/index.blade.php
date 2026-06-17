@@ -341,6 +341,10 @@
 
     @elseif ($activeTab === 'leave_requests')
         <div class="mt-5 space-y-5">
+            @if (session('leave_status'))
+                <x-ui.alert variant="success">{{ session('leave_status') }}</x-ui.alert>
+            @endif
+
             <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <x-ui.stat-card
                     label="Submitted"
@@ -368,7 +372,7 @@
                 />
             </div>
 
-            <x-ui.table :headers="['Employee', 'Leave Type', 'Period', 'Days', 'Requested On', 'Status', '']">
+            <x-ui.table :headers="['Employee', 'Leave Type', 'Period', 'Days', 'Requested On', 'Status', 'Documents', '']">
                 @forelse ($employeeLeaveRequests as $request)
                     <tr class="transition hover:bg-slate-50">
                         <x-ui.table.td>
@@ -383,9 +387,6 @@
                         </x-ui.table.td>
                         <x-ui.table.td>
                             {{ number_format((float) $request->total_days, 2) }}
-                            @if ($request->documents->isNotEmpty())
-                                <p class="text-xs text-slate-400">{{ $request->documents->count() }} attachment(s)</p>
-                            @endif
                         </x-ui.table.td>
                         <x-ui.table.td>{{ $request->created_at?->format('d M Y') ?? '-' }}</x-ui.table.td>
                         <x-ui.table.td>
@@ -394,12 +395,35 @@
                             </x-ui.badge>
                         </x-ui.table.td>
                         <x-ui.table.td>
-                            <span class="text-xs text-slate-400">Review flow pending</span>
+                            @if ($request->documents->isEmpty())
+                                <span class="text-xs text-slate-400">No documents</span>
+                            @else
+                                <div class="space-y-1">
+                                    @foreach ($request->documents as $document)
+                                        <button
+                                            type="button"
+                                            wire:click="downloadLeaveRequestDocument({{ $document->id }})"
+                                            class="block text-left text-xs font-medium text-blue-700 hover:underline"
+                                        >
+                                            {{ $document->title }}
+                                        </button>
+                                    @endforeach
+                                </div>
+                            @endif
+                        </x-ui.table.td>
+                        <x-ui.table.td>
+                            <div class="flex flex-wrap items-center gap-1">
+                                @if (in_array($request->status, ['submitted', 'under_review'], true))
+                                    <x-ui.button wire:click="approveLeaveRequest({{ $request->id }})" variant="ghost" size="sm">Approve</x-ui.button>
+                                    <x-ui.button wire:click="openApproveLeaveRequestModal({{ $request->id }})" variant="ghost" size="sm">Upload & Approve</x-ui.button>
+                                @endif
+                                <x-ui.button wire:click="printLeaveApplication({{ $request->id }})" variant="ghost" size="sm">Print</x-ui.button>
+                            </div>
                         </x-ui.table.td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="7">
+                        <td colspan="8">
                             <x-ui.empty-state
                                 title="No employee leave requests"
                                 description="Employee-submitted requests will appear here."
@@ -410,4 +434,40 @@
             </x-ui.table>
         </div>
     @endif
+
+    <x-ui.modal name="approve-leave-request" title="Approve Leave Request" size="lg">
+        <div class="space-y-4">
+            <p class="text-sm text-slate-600">
+                Approve the employee request. You may attach the physically signed application now; the employee will be able to download it from their leave details.
+            </p>
+
+            <x-ui.textarea
+                wire:model="leaveApprovalRemarks"
+                label="Approval Remarks"
+                placeholder="Optional remarks"
+                :error="$errors->first('leaveApprovalRemarks')"
+            />
+
+            <div>
+                <label class="text-sm font-medium text-slate-800">Signed Application</label>
+                <input
+                    type="file"
+                    wire:model="signedLeaveDocumentFile"
+                    class="mt-1 block w-full border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 shadow-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                />
+                <p class="mt-1 text-xs text-slate-500">PDF, JPG, JPEG, PNG, DOC, or DOCX up to 10 MB.</p>
+                @error('signedLeaveDocumentFile')
+                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                @enderror
+            </div>
+        </div>
+
+        <x-slot:footer>
+            <x-ui.button variant="secondary" x-on:click="$dispatch('close-modal', { name: 'approve-leave-request' })">Cancel</x-ui.button>
+            <x-ui.button wire:click="approveSelectedLeaveRequest" wire:loading.attr="disabled">
+                <span wire:loading.remove wire:target="approveSelectedLeaveRequest">Approve</span>
+                <span wire:loading wire:target="approveSelectedLeaveRequest">Approving...</span>
+            </x-ui.button>
+        </x-slot:footer>
+    </x-ui.modal>
 </section>

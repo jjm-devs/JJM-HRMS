@@ -195,7 +195,13 @@
                 wire:model="orgUnitId"
                 label="Organisation Unit"
                 :options="$orgUnits"
-                placeholder="All units (unrestricted)"
+                placeholder="Select organisation unit"
+            />
+
+            <x-ui.select
+                wire:model="departmentStreamId"
+                label="Department Stream"
+                :options="$departmentStreams"
             />
 
             {{-- batch type --}}

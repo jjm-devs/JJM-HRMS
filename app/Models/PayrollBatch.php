@@ -22,6 +22,7 @@ class PayrollBatch extends Model
         'period_to',
         'payment_date',
         'org_unit_id',
+        'department_stream_id',
         'generated_by',
         'approved_by',
         'gross_total',
@@ -62,6 +63,11 @@ class PayrollBatch extends Model
         return $this->belongsTo(OrgUnit::class);
     }
 
+    public function departmentStream(): BelongsTo
+    {
+        return $this->belongsTo(DepartmentStream::class);
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(PayrollItem::class);
@@ -70,6 +76,11 @@ class PayrollBatch extends Model
     public function workflowInstances(): MorphMany
     {
         return $this->morphMany(WorkflowInstance::class, 'workflowable');
+    }
+
+    public function documents(): MorphMany
+    {
+        return $this->morphMany(Document::class, 'documentable');
     }
 
     public function workflowInstance(): MorphOne

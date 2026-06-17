@@ -9,6 +9,7 @@ use App\Models\WorkflowAction;
 use App\Models\WorkflowDefinition;
 use App\Models\WorkflowInstance;
 use App\Models\WorkflowStep;
+use App\Services\Hr\HrScopeService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -50,7 +51,38 @@ class PayrollWorkflowService
             return false;
         }
 
-        return ! $batch->isLocked() && in_array($batch->status, ['draft', 'returned'], true);
+        return ! $batch->isLocked()
+            && in_array($batch->status, ['draft', 'returned'], true)
+            && app(HrScopeService::class)->isHeadOfficeHr($user);
+    }
+
+    public function canHrEditBeforeSubmission(PayrollBatch $batch, ?User $user = null): bool
+    {
+        $user ??= Auth::user();
+
+        if (! $user || ! $user->hasRole('hr') || $batch->isLocked()) {
+            return false;
+        }
+
+        if (! in_array($batch->status, ['draft', 'returned'], true)) {
+            return false;
+        }
+
+        return (int) $batch->generated_by === (int) $user->id
+            || app(HrScopeService::class)->isHeadOfficeHr($user);
+    }
+
+    public function canDiscardFromHr(PayrollBatch $batch, ?User $user = null): bool
+    {
+        return $this->canHrEditBeforeSubmission($batch, $user);
+    }
+
+    public function canGenerateFinalPayrollDocuments(PayrollBatch $batch, ?User $user = null): bool
+    {
+        $user ??= Auth::user();
+
+        return $batch->isLocked()
+            && app(HrScopeService::class)->isHeadOfficeHr($user);
     }
 
     public function canCurrentUserAct(PayrollBatch $batch, ?User $user = null): bool
@@ -75,7 +107,7 @@ class PayrollWorkflowService
             return false;
         }
 
-        return $this->canSubmitFromHr($batch, $user)
+        return $this->canHrEditBeforeSubmission($batch, $user)
             || $this->canCurrentUserAct($batch, $user);
     }
 
