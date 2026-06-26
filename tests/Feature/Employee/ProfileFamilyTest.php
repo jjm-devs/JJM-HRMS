@@ -13,6 +13,39 @@ class ProfileFamilyTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_employee_can_view_bank_account_details(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Employee User',
+            'email' => 'employee-bank@example.test',
+            'password' => 'password',
+            'is_hr' => false,
+            'is_admin' => false,
+            'status' => 'active',
+        ]);
+
+        Employee::query()->create([
+            'user_id' => $user->id,
+            'employee_code' => 'EMP-SELF-BANK-00001',
+            'full_name' => 'Self Bank Employee',
+            'service_status' => 'active',
+            'bank_account_number' => '998877665544',
+            'bank_ifsc_code' => 'HDFC0004321',
+            'bank_name' => 'HDFC Bank',
+            'bank_branch' => 'Guwahati Branch',
+        ]);
+
+        $this->actingAs($user);
+
+        Livewire::test(Index::class)
+            ->call('setActiveTab', 'bank')
+            ->assertSee('Bank Account Details')
+            ->assertSee('998877665544')
+            ->assertSee('HDFC0004321')
+            ->assertSee('HDFC Bank')
+            ->assertSee('Guwahati Branch');
+    }
+
     public function test_employee_can_manage_own_family_members(): void
     {
         $user = User::query()->create([

@@ -63,6 +63,13 @@ class Show extends Component
         'status' => 'active',
     ];
 
+    public array $bankForm = [
+        'bank_account_number' => '',
+        'bank_ifsc_code' => '',
+        'bank_name' => '',
+        'bank_branch' => '',
+    ];
+
     public array $salaryComponentForm = [
         'pay_level_id' => '',
         'salary_component_id' => '',
@@ -92,6 +99,7 @@ class Show extends Component
             'user',
         ]);
 
+        $this->resetBankForm();
         $this->resetSalaryComponentForm();
     }
 
@@ -159,6 +167,19 @@ class Show extends Component
 
         $this->resetQualificationForm();
         $this->employee->load('qualifications');
+    }
+
+    public function saveBankDetails(): void
+    {
+        $this->normalizeBankForm();
+
+        $data = $this->validateBankForm();
+
+        $this->employee->update($data);
+        $this->employee->refresh();
+        $this->resetBankForm();
+
+        session()->flash('bank_status', 'Bank account details updated successfully.');
     }
 
     public function saveSalaryComponent(): void
@@ -494,6 +515,17 @@ class Show extends Component
         ];
     }
 
+    public function resetBankForm(): void
+    {
+        $this->resetErrorBag();
+        $this->bankForm = [
+            'bank_account_number' => $this->employee->bank_account_number ?? '',
+            'bank_ifsc_code' => $this->employee->bank_ifsc_code ?? '',
+            'bank_name' => $this->employee->bank_name ?? '',
+            'bank_branch' => $this->employee->bank_branch ?? '',
+        ];
+    }
+
     public function resetSalaryComponentForm(): void
     {
         $salaryStructure = $this->currentSalaryStructure();
@@ -604,6 +636,21 @@ class Show extends Component
             'qualificationForm.specialization' => ['nullable', 'string', 'max:150'],
             'qualificationForm.status' => ['required', Rule::in(array_keys($this->qualificationStatusOptions()))],
         ])['qualificationForm'];
+
+        return array_map(fn ($value) => $value === '' ? null : $value, $validated);
+    }
+
+    private function validateBankForm(): array
+    {
+        $validated = $this->validate([
+            'bankForm.bank_account_number' => ['nullable', 'string', 'max:40'],
+            'bankForm.bank_ifsc_code' => ['nullable', 'string', 'size:11', 'regex:/^[A-Z]{4}0[A-Z0-9]{6}$/'],
+            'bankForm.bank_name' => ['nullable', 'string', 'max:150'],
+            'bankForm.bank_branch' => ['nullable', 'string', 'max:150'],
+        ], [
+            'bankForm.bank_ifsc_code.regex' => 'Enter a valid IFSC code.',
+            'bankForm.bank_ifsc_code.size' => 'The IFSC code must be 11 characters.',
+        ])['bankForm'];
 
         return array_map(fn ($value) => $value === '' ? null : $value, $validated);
     }
@@ -790,11 +837,22 @@ class Show extends Component
             'overview' => 'Overview',
             'contacts' => 'Contacts',
             'family' => 'Family',
+            'bank' => 'Bank Details',
             'salary' => 'Salary',
             'qualifications' => 'Qualifications',
             'experience' => 'Experience',
             'documents' => 'Documents',
             'posting' => 'Posting History',
+        ];
+    }
+
+    private function normalizeBankForm(): void
+    {
+        $this->bankForm = [
+            'bank_account_number' => trim((string) ($this->bankForm['bank_account_number'] ?? '')),
+            'bank_ifsc_code' => strtoupper(trim((string) ($this->bankForm['bank_ifsc_code'] ?? ''))),
+            'bank_name' => trim((string) ($this->bankForm['bank_name'] ?? '')),
+            'bank_branch' => trim((string) ($this->bankForm['bank_branch'] ?? '')),
         ];
     }
 

@@ -4,6 +4,10 @@
     <meta charset="utf-8">
     <title>{{ $payslip->payslip_number }}</title>
     <style>
+        @page { size: A4; margin: 12mm; }
+        @media print {
+            body { margin: 0; }
+        }
         body { color: #0f172a; font-family: Arial, sans-serif; font-size: 13px; line-height: 1.45; margin: 32px; }
         h1 { font-size: 22px; margin: 0; }
         h2 { font-size: 15px; margin: 24px 0 8px; }
@@ -18,10 +22,7 @@
     </style>
 </head>
 <body>
-    <header>
-        <h1>JJM HRMS Payslip</h1>
-        <p class="muted">{{ $payslip->payslip_number }} | {{ $batch->period_from->format('d M Y') }} to {{ $batch->period_to->format('d M Y') }}</p>
-    </header>
+    <x-documents.govt-letterhead :title="'Salary Slip for '.$batch->period_to->format('F Y')" />
 
     <section class="grid">
         <div class="box">
@@ -31,8 +32,8 @@
             Office: {{ $employee->orgUnit?->name ?? '-' }}
         </div>
         <div class="box">
-            Batch: {{ $batch->batch_number }}<br>
-            Type: {{ $batch->typeLabel() }}<br>
+            Salary Month: {{ $batch->period_to->format('F Y') }}<br>
+            Pay Period: {{ $batch->period_from->format('d M Y') }} – {{ $batch->period_to->format('d M Y') }}<br>
             Payment Date: {{ $batch->payment_date?->format('d M Y') ?? '-' }}<br>
             Generated: {{ now()->format('d M Y, h:i A') }}
         </div>
@@ -43,25 +44,38 @@
         <thead>
             <tr>
                 <th>Component</th>
-                <th>Details</th>
                 <th class="right">Amount</th>
             </tr>
         </thead>
         <tbody>
-            @forelse ($earnings as $component)
+            @php
+                $additionAdjustments = $adjustments->where('type', 'addition');
+                $deductionAdjustments = $adjustments->where('type', 'deduction');
+                $additionsTotal = (float) $additionAdjustments->sum('amount');
+                $deductionsTotal = (float) $deductionAdjustments->sum('amount');
+                $hasEarnings = $earnings->isNotEmpty() || $additionAdjustments->isNotEmpty();
+                $hasDeductions = $deductions->isNotEmpty() || $deductionAdjustments->isNotEmpty();
+            @endphp
+            @foreach ($earnings as $component)
                 <tr>
                     <td>{{ $component->name }}</td>
-                    <td>{{ $component->calculation_details ?? '-' }}</td>
                     <td class="right">Rs. {{ number_format((float) $component->amount, 2) }}</td>
                 </tr>
-            @empty
+            @endforeach
+            @foreach ($additionAdjustments as $adjustment)
                 <tr>
-                    <td colspan="3">No earnings recorded.</td>
+                    <td>{{ $adjustment->label }}</td>
+                    <td class="right">Rs. {{ number_format((float) $adjustment->amount, 2) }}</td>
                 </tr>
-            @endforelse
+            @endforeach
+            @unless ($hasEarnings)
+                <tr>
+                    <td colspan="2">No earnings recorded.</td>
+                </tr>
+            @endunless
             <tr class="total">
-                <td colspan="2">Gross Salary</td>
-                <td class="right">Rs. {{ number_format((float) $item->gross_salary, 2) }}</td>
+                <td>Gross Salary</td>
+                <td class="right">Rs. {{ number_format((float) $item->gross_salary + $additionsTotal, 2) }}</td>
             </tr>
         </tbody>
     </table>
@@ -71,32 +85,30 @@
         <thead>
             <tr>
                 <th>Component</th>
-                <th>Details</th>
                 <th class="right">Amount</th>
             </tr>
         </thead>
         <tbody>
-            @forelse ($deductions as $component)
+            @foreach ($deductions as $component)
                 <tr>
                     <td>{{ $component->name }}</td>
-                    <td>{{ $component->calculation_details ?? '-' }}</td>
                     <td class="right">Rs. {{ number_format((float) $component->amount, 2) }}</td>
                 </tr>
-            @empty
-                <tr>
-                    <td colspan="3">No deductions recorded.</td>
-                </tr>
-            @endforelse
-            @foreach ($adjustments as $adjustment)
+            @endforeach
+            @foreach ($deductionAdjustments as $adjustment)
                 <tr>
                     <td>{{ $adjustment->label }}</td>
-                    <td>{{ $adjustment->note ?? 'Manual '.$adjustment->type }}</td>
-                    <td class="right">{{ $adjustment->type === 'addition' ? '-' : '' }}Rs. {{ number_format((float) $adjustment->amount, 2) }}</td>
+                    <td class="right">Rs. {{ number_format((float) $adjustment->amount, 2) }}</td>
                 </tr>
             @endforeach
+            @unless ($hasDeductions)
+                <tr>
+                    <td colspan="2">No deductions recorded.</td>
+                </tr>
+            @endunless
             <tr class="total">
-                <td colspan="2">Total Deductions</td>
-                <td class="right">Rs. {{ number_format((float) $item->total_deductions, 2) }}</td>
+                <td>Total Deductions</td>
+                <td class="right">Rs. {{ number_format((float) $item->total_deductions + $deductionsTotal, 2) }}</td>
             </tr>
         </tbody>
     </table>
@@ -119,6 +131,6 @@
         </tbody>
     </table>
 
-    <p class="muted">This is a system-generated payslip from JJM HRMS.</p>
+    <p class="muted" style="margin-top:24px;">This is a system-generated payslip.</p>
 </body>
 </html>

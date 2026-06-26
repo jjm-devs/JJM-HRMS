@@ -198,11 +198,29 @@
                 placeholder="Select organisation unit"
             />
 
-            <x-ui.select
-                wire:model="departmentStreamId"
-                label="Department Stream"
-                :options="$departmentStreams"
-            />
+            <div>
+                <p class="mb-1.5 text-sm font-medium text-slate-700">Department Streams</p>
+                <div class="space-y-2 rounded border border-slate-200 bg-slate-50 px-3 py-2.5">
+                    @foreach ($departmentStreams as $id => $name)
+                        <label class="flex cursor-pointer items-center gap-2.5">
+                            <input
+                                type="checkbox"
+                                wire:model="departmentStreamIds"
+                                value="{{ $id }}"
+                                class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            >
+                            <span class="text-sm text-slate-700">{{ $name }}</span>
+                        </label>
+                    @endforeach
+                </div>
+                <p class="mt-1 text-xs text-slate-400">Leave all unchecked to include employees from all streams.</p>
+                @error('departmentStreamIds')
+                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                @enderror
+                @error('departmentStreamIds.*')
+                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                @enderror
+            </div>
 
             {{-- batch type --}}
             <x-ui.select

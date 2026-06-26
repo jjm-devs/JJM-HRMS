@@ -26,6 +26,8 @@ class User extends Authenticatable implements FilamentUser
         'is_hr',
         'status',
         'must_change_password',
+        'signature_path',
+        'signature_disk',
     ];
 
     protected $hidden = [

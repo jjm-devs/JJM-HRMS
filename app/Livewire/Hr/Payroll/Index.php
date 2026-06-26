@@ -26,7 +26,7 @@ class Index extends Component
     public string $batchType    = 'regular';
     public string $disbursementPct = '100';
 
-    public string $departmentStreamId = '';
+    public array $departmentStreamIds = [];
 
     public function mount(): void
     {
@@ -60,7 +60,8 @@ class Index extends Component
                 'periodTo'           => ['required', 'date', 'after:periodFrom'],
                 'paymentDate'        => ['nullable', 'date'],
                 'orgUnitId'          => ['required', 'integer', 'exists:org_units,id'],
-                'departmentStreamId' => ['nullable', 'integer', 'exists:department_streams,id'],
+                'departmentStreamIds'   => ['nullable', 'array'],
+                'departmentStreamIds.*' => ['integer', 'exists:department_streams,id'],
                 'batchType'          => ['required', 'in:regular,partial'],
                 'disbursementPct'    => $this->batchType === 'partial'
                     ? ['required', 'numeric', 'min:1', 'max:99']
@@ -77,7 +78,7 @@ class Index extends Component
                 periodTo:               $this->periodTo,
                 paymentDate:            $this->paymentDate ?: null,
                 orgUnitId:              $this->orgUnitId ? (int) $this->orgUnitId : null,
-                departmentStreamId:     $this->departmentStreamId ? (int) $this->departmentStreamId : null,
+                departmentStreamIds:    array_map('intval', $this->departmentStreamIds),
                 batchType:              $this->batchType,
                 defaultDisbursementPct: $pct,
             );
@@ -167,15 +168,11 @@ class Index extends Component
         $scopeService = app(\App\Services\Hr\HrScopeService::class);
         $scopedIds    = $scopeService->scopedOrgUnitIds();
 
-        $firstStream = \App\Models\DepartmentStream::where('status', 'active')
-            ->orderBy('name')
-            ->first();
-
         $this->periodFrom         = now()->subMonth()->setDay(25)->format('Y-m-d');
         $this->periodTo           = now()->setDay(25)->format('Y-m-d');
         $this->paymentDate        = now()->endOfMonth()->format('Y-m-d');
         $this->orgUnitId          = $scopedIds?->first() ? (string) $scopedIds->first() : '';
-        $this->departmentStreamId = $firstStream ? (string) $firstStream->id : '';
+        $this->departmentStreamIds = [];
         $this->batchType          = 'regular';
         $this->disbursementPct    = '100';
     }

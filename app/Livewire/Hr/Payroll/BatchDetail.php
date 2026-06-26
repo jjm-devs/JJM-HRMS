@@ -8,9 +8,11 @@ use App\Models\PayrollBatch;
 use App\Models\PayrollItem;
 use App\Models\PayrollItemAdjustment;
 use App\Models\Role;
+use App\Models\SanctionActivity;
 use App\Services\Payroll\PayrollBatchDocumentService;
-use App\Services\Payroll\PayslipGenerationService;
 use App\Services\Payroll\PayrollWorkflowService;
+use App\Services\Payroll\PayslipGenerationService;
+use App\Services\Payroll\SanctionOrderDocumentService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
@@ -35,6 +37,21 @@ class BatchDetail extends Component
     public string $batchDocumentRemarks = '';
 
     public $batchDocumentFile = null;
+
+    // sanction order form
+    public string $sanctionActivityId = '';
+
+    public string $sanctionSignatory = '';
+
+    public string $sanctionReferenceSerial = '';
+
+    public string $sanctionReferenceDate = '';
+
+    public string $sanctionMemoSerial = '';
+
+    public string $sanctionMemoDate = '';
+
+    public string $sanctionCopyTo = '';
 
     // ── actions ───────────────────────────────────────────────────────────────
 
@@ -66,10 +83,92 @@ class BatchDetail extends Component
         $this->dispatch('open-modal', name: 'generate-payslips');
     }
 
+    public function generatePayslips(): void
+    {
+        abort_unless(Auth::user()?->hasRole('deputy_md'), 403);
+        abort_unless(in_array($this->batch->status, ['locked', 'disbursed'], true) || $this->batch->isLocked(), 403);
+
+        $payslips = app(PayslipGenerationService::class)->generateForBatch($this->batch);
+
+        $this->batch->refresh();
+        $this->dispatch('close-modal', name: 'generate-payslips');
+        session()->flash('status', "{$payslips->count()} payslip(s) regenerated for {$this->batch->batch_number}.");
+    }
+
+    public function openMarkDisbursedModal(): void
+    {
+        $this->dispatch('open-modal', name: 'mark-disbursed');
+    }
+
+    public function markAsDisbursed(): void
+    {
+        abort_unless(app(PayrollWorkflowService::class)->canMarkDisbursed($this->batch), 403);
+
+        app(PayrollWorkflowService::class)->markAsDisbursed($this->batch);
+
+        $this->batch->refresh();
+        $this->dispatch('close-modal', name: 'mark-disbursed');
+        session()->flash('status', "Batch {$this->batch->batch_number} marked as disbursed.");
+    }
+
     public function openUploadBatchDocumentModal(): void
     {
         $this->resetBatchDocumentForm();
         $this->dispatch('open-modal', name: 'upload-batch-document');
+    }
+
+    public function openSanctionOrderModal(): void
+    {
+        abort_unless(app(PayrollWorkflowService::class)->canGenerateFinalPayrollDocuments($this->batch), 403);
+
+        $this->sanctionActivityId = (string) (SanctionActivity::query()->active()->orderBy('name')->value('id') ?? '');
+        $this->sanctionSignatory = (string) array_key_first((array) config('sanction.signatories', []));
+        $this->sanctionReferenceSerial = '';
+        $this->sanctionReferenceDate = '';
+        $this->sanctionMemoSerial = '';
+        $this->sanctionMemoDate = '';
+        $this->sanctionCopyTo = implode("\n", (array) config('sanction.copy_to_default', []));
+        $this->resetValidation();
+
+        $this->dispatch('open-modal', name: 'generate-sanction-order');
+    }
+
+    public function generateSanctionOrder()
+    {
+        abort_unless(app(PayrollWorkflowService::class)->canGenerateFinalPayrollDocuments($this->batch), 403);
+
+        $this->validate([
+            'sanctionActivityId' => ['required', 'integer', 'exists:sanction_activities,id'],
+            'sanctionSignatory' => ['required', 'string', 'in:'.implode(',', array_keys((array) config('sanction.signatories', [])))],
+            'sanctionReferenceSerial' => ['nullable', 'string', 'max:50'],
+            'sanctionReferenceDate' => ['nullable', 'string', 'max:50'],
+            'sanctionMemoSerial' => ['nullable', 'string', 'max:50'],
+            'sanctionMemoDate' => ['nullable', 'string', 'max:50'],
+            'sanctionCopyTo' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $copyTo = collect(preg_split('/\r\n|\r|\n/', $this->sanctionCopyTo))
+            ->map(fn ($line) => trim($line))
+            ->filter()
+            ->values()
+            ->all();
+
+        $document = app(SanctionOrderDocumentService::class)->generate($this->batch, [
+            'activity_id' => (int) $this->sanctionActivityId,
+            'signatory' => $this->sanctionSignatory,
+            'reference_serial' => $this->sanctionReferenceSerial,
+            'reference_date' => $this->sanctionReferenceDate,
+            'memo_serial' => $this->sanctionMemoSerial,
+            'memo_date' => $this->sanctionMemoDate,
+            'copy_to' => $copyTo,
+        ]);
+
+        $this->batch->refresh();
+        $this->logDocumentAccess($document, 'generated');
+        $this->dispatch('close-modal', name: 'generate-sanction-order');
+        session()->flash('status', "Sanction order generated for {$this->batch->batch_number}.");
+
+        return Storage::disk($document->disk)->download($document->file_path, $document->file_name);
     }
 
     public function downloadFinalPayrollDocument(string $type)
@@ -89,7 +188,7 @@ class BatchDetail extends Component
         $data = $this->validate([
             'batchDocumentTitle' => ['required', 'string', 'max:255'],
             'batchDocumentRemarks' => ['nullable', 'string', 'max:1000'],
-            'batchDocumentFile' => ['required', 'file', 'max:10240', 'mimes:pdf,jpg,jpeg,png,doc,docx'],
+            'batchDocumentFile' => ['required', 'file', 'max:10240', 'mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx'],
         ]);
 
         $file = $data['batchDocumentFile'];
@@ -137,17 +236,6 @@ class BatchDetail extends Component
         $this->logDocumentAccess($document, 'downloaded');
 
         return Storage::disk($document->disk)->download($document->file_path, $document->file_name);
-    }
-
-    public function generatePayslips(): void
-    {
-        abort_unless(Auth::user()?->hasRole('hr'), 403);
-
-        $payslips = app(PayslipGenerationService::class)->generateForBatch($this->batch);
-
-        $this->batch->refresh();
-        $this->dispatch('close-modal', name: 'generate-payslips');
-        session()->flash('status', "{$payslips->count()} payslip(s) generated for {$this->batch->batch_number}.");
     }
 
     public function submitBatch(): void
@@ -238,7 +326,7 @@ class BatchDetail extends Component
         $this->batch->loadMissing('parentBatch:id,batch_number', 'orgUnit:id,name');
         $workflowService = app(PayrollWorkflowService::class);
         $workflowInstance = $workflowService->workflowInstanceFor($this->batch);
-    
+
         $items = PayrollItem::query()
             ->where('payroll_batch_id', $this->batch->id)
             ->with([
@@ -259,14 +347,16 @@ class BatchDetail extends Component
             ->when($this->filterStatus, fn ($q) => $q->where('status', $this->filterStatus))
             ->orderBy('id')
             ->paginate(20);
-    
+
         $itemIds = $this->batch->items()->pluck('id');
-    
-        $adjTotals = \App\Models\PayrollItemAdjustment::whereIn('payroll_item_id', $itemIds)
+
+        $adjTotals = PayrollItemAdjustment::whereIn('payroll_item_id', $itemIds)
             ->selectRaw('type, SUM(amount) as total')
             ->groupBy('type')
             ->pluck('total', 'type');
-    
+        $totalDeductions = max(0, $this->batch->items()->sum('total_deductions')
+                            + ($adjTotals['deduction'] ?? 0)
+                            - ($adjTotals['addition'] ?? 0));
         return view('livewire.hr.payroll.batch-detail', [
             'items' => $items,
             'workflowInstance' => $workflowInstance,
@@ -285,24 +375,28 @@ class BatchDetail extends Component
             'canDiscardBatch' => $workflowService->canDiscardFromHr($this->batch),
             'canActOnWorkflow' => $workflowService->canCurrentUserAct($this->batch),
             'canEditPayroll' => $workflowService->canCurrentUserEdit($this->batch),
-            'canGeneratePayslips' => Auth::user()?->hasRole('hr')
-                && (in_array($this->batch->status, ['approved', 'locked', 'disbursed'], true) || $this->batch->isLocked()),
+            'canMarkDisbursed' => $workflowService->canMarkDisbursed($this->batch),
+            'canGeneratePayslips' => Auth::user()?->hasRole('deputy_md')
+                && (in_array($this->batch->status, ['locked', 'disbursed'], true) || $this->batch->isLocked()),
             'canGenerateFinalDocuments' => $workflowService->canGenerateFinalPayrollDocuments($this->batch),
             'finalDocumentTypes' => PayrollBatchDocumentService::TYPES,
+            'sanctionActivities' => SanctionActivity::query()->active()->orderBy('name')->get()
+                ->mapWithKeys(fn ($activity) => [$activity->id => $activity->name.' — '.$activity->staff_category]),
+            'sanctionSignatories' => collect((array) config('sanction.signatories', []))
+                ->map(fn ($lines) => implode(' — ', (array) $lines))
+                ->all(),
             'batchDocuments' => $this->batch->documents()
                 ->with('uploadedBy:id,name')
                 ->latest()
                 ->get(),
             'finalApproverLabel' => Role::labelFor('md'),
             'summary' => [
-                'employees'      => $this->batch->items()->count(),
-                'gross'          => $this->batch->gross_total,
-                'deductions'     => $this->batch->items()->sum('total_deductions')
-                                + ($adjTotals['deduction'] ?? 0)
-                                - ($adjTotals['addition'] ?? 0),
-                'net'            => $this->batch->net_total,
-                'disbursed'      => $this->batch->disbursed_total,
-                'payslips'       => $this->batch->items()->whereHas('payslip', fn ($q) => $q->where('status', 'issued'))->count(),
+                'employees' => $this->batch->items()->count(),
+                'gross' => $this->batch->gross_total,
+                'deductions' => $totalDeductions,
+                'net' => $this->batch->net_total,
+                'disbursed' => $this->batch->disbursed_total,
+                'payslips' => $this->batch->items()->whereHas('payslip', fn ($q) => $q->where('status', 'issued'))->count(),
                 'pending_review' => $this->batch->items()
                     ->whereHas('leaveAdjustments', fn ($q) => $q->whereNull('hr_classification'))
                     ->count(),

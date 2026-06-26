@@ -5,6 +5,7 @@ namespace Tests\Feature\Hr;
 use App\Livewire\Hr\Documents\Index as HrDocumentsIndex;
 use App\Livewire\Hr\Payroll\BatchDetail;
 use App\Livewire\Hr\Payroll\ItemAdjustment;
+use App\Models\Designation;
 use App\Models\Document;
 use App\Models\DocumentAccessLog;
 use App\Models\Employee;
@@ -21,6 +22,7 @@ use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
+use ZipArchive;
 
 class PayrollHoPermissionTest extends TestCase
 {
@@ -90,23 +92,35 @@ class PayrollHoPermissionTest extends TestCase
         $this->actingAs($creator);
 
         $this->expectForbidden(function () use ($batch) {
-            app(PayrollBatchDocumentService::class)->generate($batch, 'sanction_letter');
+            app(PayrollBatchDocumentService::class)->generate($batch, 'salary_statement');
         });
 
         $this->actingAs($ho);
 
         Livewire::test(BatchDetail::class, ['batch' => $batch])
-            ->call('downloadFinalPayrollDocument', 'sanction_letter')
-            ->assertFileDownloaded("sanction-letter-{$batch->batch_number}.pdf");
+            ->call('downloadFinalPayrollDocument', 'salary_statement')
+            ->assertFileDownloaded("salary-statement-{$batch->batch_number}.xlsx");
 
-        $generated = Document::query()
+        $statement = Document::query()
             ->where('documentable_type', $batch->getMorphClass())
             ->where('documentable_id', $batch->id)
-            ->where('title', 'Sanction Letter')
+            ->where('title', 'Salary Statement')
             ->firstOrFail();
 
-        Storage::disk('local')->assertExists($generated->file_path);
-        $this->assertStringStartsWith('%PDF-', Storage::disk('local')->get($generated->file_path));
+        Storage::disk('local')->assertExists($statement->file_path);
+        $this->assertSame(
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            $statement->mime_type,
+        );
+        $this->assertStringStartsWith('PK', Storage::disk('local')->get($statement->file_path));
+        $this->assertSalaryStatementContains($statement, [
+            'HO Permission Employee',
+            'Executive Engineer',
+            '123456789012',
+            'SBIN0001234',
+            'Earning: Dearness Allowance',
+            'Deduction: Provident Fund',
+        ]);
 
         Livewire::test(BatchDetail::class, ['batch' => $batch])
             ->set('batchDocumentTitle', 'Signed Sanction Letter')
@@ -131,7 +145,7 @@ class PayrollHoPermissionTest extends TestCase
         $this->assertGreaterThanOrEqual(
             2,
             DocumentAccessLog::query()
-                ->whereIn('document_id', [$generated->id, $uploaded->id])
+                ->whereIn('document_id', [$statement->id, $uploaded->id])
                 ->count(),
         );
     }
@@ -146,6 +160,11 @@ class PayrollHoPermissionTest extends TestCase
             'name' => 'Head Office',
             'code' => 'HO-TEST-'.uniqid(),
             'type' => 'head_office',
+            'status' => 'active',
+        ]);
+        $designation = Designation::query()->create([
+            'name' => 'Executive Engineer',
+            'code' => 'EE-TEST-'.uniqid(),
             'status' => 'active',
         ]);
 
@@ -192,6 +211,11 @@ class PayrollHoPermissionTest extends TestCase
             'employee_code' => 'EMP-HO-00001',
             'full_name' => 'HO Permission Employee',
             'org_unit_id' => $orgUnit->id,
+            'designation_id' => $designation->id,
+            'bank_account_number' => '123456789012',
+            'bank_ifsc_code' => 'SBIN0001234',
+            'bank_name' => 'State Bank of India',
+            'bank_branch' => 'Dispur Branch',
             'service_status' => 'active',
         ]);
 
@@ -220,7 +244,39 @@ class PayrollHoPermissionTest extends TestCase
             'status' => 'draft',
         ]);
 
+        $item->components()->create([
+            'name' => 'Dearness Allowance',
+            'type' => 'earning',
+            'amount' => 1000,
+            'calculation_details' => 'Test earning',
+        ]);
+
+        $item->components()->create([
+            'name' => 'Provident Fund',
+            'type' => 'deduction',
+            'amount' => 100,
+            'calculation_details' => 'Test deduction',
+        ]);
+
         return [$creator, $ho, $batch, $item];
+    }
+
+    /**
+     * @param  array<int, string>  $expectedValues
+     */
+    private function assertSalaryStatementContains(Document $document, array $expectedValues): void
+    {
+        $zip = new ZipArchive;
+        $this->assertTrue($zip->open(Storage::disk('local')->path($document->file_path)));
+
+        $worksheet = $zip->getFromName('xl/worksheets/sheet1.xml');
+        $zip->close();
+
+        $this->assertIsString($worksheet);
+
+        foreach ($expectedValues as $expectedValue) {
+            $this->assertStringContainsString($expectedValue, $worksheet);
+        }
     }
 
     private function expectForbidden(callable $callback): void

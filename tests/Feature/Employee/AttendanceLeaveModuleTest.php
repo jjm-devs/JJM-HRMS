@@ -90,19 +90,20 @@ class AttendanceLeaveModuleTest extends TestCase
         $this->assertSame(LeaveApplication::STATUS_SUBMITTED, $day->status);
     }
 
-    public function test_casual_leave_is_limited_to_two_days_per_month(): void
+    public function test_paid_leave_beyond_monthly_bank_is_allowed(): void
     {
         [$user, $employee] = $this->employeeUser();
 
         $leaveType = LeaveType::query()->create([
-            'name' => 'Casual Leave',
-            'code' => 'CL',
+            'name' => 'Paid Leave',
+            'code' => 'PL',
             'is_paid' => true,
             'status' => 'active',
         ]);
 
         $this->actingAs($user);
 
+        // Within the 2/month bank — allowed.
         Livewire::test(EmployeeAttendanceIndex::class)
             ->set('leaveForm.leave_type_id', (string) $leaveType->id)
             ->set('leaveForm.start_date', '2026-06-01')
@@ -111,15 +112,16 @@ class AttendanceLeaveModuleTest extends TestCase
             ->call('submitLeaveRequest')
             ->assertHasNoErrors();
 
+        // Beyond the bank — also allowed now (the excess is deducted in payroll).
         Livewire::test(EmployeeAttendanceIndex::class)
             ->set('leaveForm.leave_type_id', (string) $leaveType->id)
             ->set('leaveForm.start_date', '2026-06-03')
             ->set('leaveForm.end_date', '2026-06-03')
             ->set('leaveForm.reason', 'More personal work.')
             ->call('submitLeaveRequest')
-            ->assertHasErrors(['leaveForm.end_date']);
+            ->assertHasNoErrors();
 
-        $this->assertSame(1, $employee->leaveApplications()->count());
+        $this->assertSame(2, $employee->leaveApplications()->count());
     }
 
     private function employeeUser(): array

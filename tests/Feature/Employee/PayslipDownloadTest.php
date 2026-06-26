@@ -2,13 +2,13 @@
 
 namespace Tests\Feature\Employee;
 
-use App\Livewire\Employee\Payslips\Index as EmployeePayslipsIndex;
 use App\Livewire\Hr\Payroll\BatchDetail;
 use App\Models\DocumentAccessLog;
 use App\Models\Employee;
 use App\Models\PayrollBatch;
 use App\Models\PayrollItem;
 use App\Models\Payslip;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
@@ -30,6 +30,13 @@ class PayslipDownloadTest extends TestCase
             'is_hr' => true,
             'status' => 'active',
         ]);
+
+        // Payslip generation is restricted to the Deputy MD workflow role.
+        $deputyMd = Role::query()->firstOrCreate(
+            ['code' => 'deputy_md'],
+            ['name' => 'Deputy MD', 'status' => 'active'],
+        );
+        $hr->roles()->attach($deputyMd);
 
         $employeeUser = User::query()->create([
             'name' => 'Payslip Employee',
@@ -90,10 +97,10 @@ class PayslipDownloadTest extends TestCase
 
         $this->actingAs($employeeUser);
 
-        Livewire::test(EmployeePayslipsIndex::class)
-            ->assertSee($payslip->payslip_number)
-            ->call('downloadPayslip', $payslip->id)
-            ->assertFileDownloaded($payslip->document->file_name);
+        // Employees open the payslip inline (new tab → browser print/Save as PDF).
+        $this->get(route('employee.payslips.print', $payslip))
+            ->assertOk()
+            ->assertSee($payslip->payslip_number, false);
 
         $this->assertSame(1, $payslip->fresh()->download_count);
         $this->assertSame(1, DocumentAccessLog::query()->where('document_id', $payslip->document_id)->count());

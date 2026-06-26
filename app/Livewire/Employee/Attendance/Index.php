@@ -10,6 +10,7 @@ use App\Models\Holiday;
 use App\Models\LeaveApplication;
 use App\Models\LeaveApplicationDay;
 use App\Models\LeaveType;
+use App\Services\Leave\PaidLeaveBankService;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonPeriod;
 use Illuminate\Support\Collection;
@@ -23,8 +24,6 @@ use Livewire\WithFileUploads;
 class Index extends Component
 {
     use WithFileUploads;
-
-    private const CASUAL_LEAVE_MONTHLY_ALLOWANCE = 2.0;
 
     public Employee $employee;
 
@@ -137,8 +136,7 @@ class Index extends Component
         $data['submitted_by'] = Auth::id();
         $data['status'] = LeaveApplication::STATUS_SUBMITTED;
 
-        $this->ensureMonthlyCasualAllowance($data);
-
+        // Paid leave beyond the monthly bank is allowed — the excess is deducted in payroll.
         $leave = LeaveApplication::query()->create($data);
         $this->syncLeaveDays($leave);
         $this->storeAttachments($leave);
@@ -191,7 +189,7 @@ class Index extends Component
                 leaveDaysByDate: $this->leaveDaysByDate($monthStart, $monthEnd),
                 attendanceLogsByDate: $this->attendanceLogsByDate($monthStart, $monthEnd),
             ),
-            'casualBank' => $this->casualLeaveBank($monthStart, $monthEnd),
+            'paidLeaveBank' => $this->paidLeaveBank($monthStart, $monthEnd),
             'leaveHistory' => $this->leaveHistory(),
             'leaveTypeOptions' => $this->leaveTypeOptions(),
             'selectedLeaveBalance' => $this->selectedLeaveBalance(),
@@ -222,31 +220,6 @@ class Index extends Component
         }
 
         return array_map(fn ($value) => $value === '' ? null : $value, $validated);
-    }
-
-    private function ensureMonthlyCasualAllowance(array $data): void
-    {
-        $casualLeaveType = $this->casualLeaveType();
-
-        if (! $casualLeaveType || (int) $data['leave_type_id'] !== $casualLeaveType->id) {
-            return;
-        }
-
-        $requestedByMonth = collect(CarbonPeriod::create($data['start_date'], $data['end_date']))
-            ->groupBy(fn ($date): string => CarbonImmutable::parse($date)->format('Y-m'))
-            ->map->count();
-
-        foreach ($requestedByMonth as $month => $requestedDays) {
-            $monthStart = CarbonImmutable::createFromFormat('Y-m', $month)->startOfMonth();
-            $monthEnd = $monthStart->endOfMonth();
-            $used = $this->casualLeaveUsed($monthStart, $monthEnd);
-
-            if (($used + $requestedDays) > self::CASUAL_LEAVE_MONTHLY_ALLOWANCE) {
-                throw ValidationException::withMessages([
-                    'leaveForm.end_date' => 'Casual leave is limited to 2 days per month. You have '.number_format(max(self::CASUAL_LEAVE_MONTHLY_ALLOWANCE - $used, 0), 2).' day(s) left for '.$monthStart->format('F Y').'.',
-                ]);
-            }
-        }
     }
 
     private function syncLeaveDays(LeaveApplication $leave): void
@@ -441,14 +414,14 @@ class Index extends Component
             return null;
         }
 
-        $leaveType = LeaveType::query()->find($this->leaveForm['leave_type_id']);
+        $bank = app(PaidLeaveBankService::class);
 
-        if ($leaveType && $this->isCasualLeaveType($leaveType)) {
-            [$monthStart, $monthEnd] = $this->selectedLeaveMonthRange();
-            $used = $this->casualLeaveUsed($monthStart, $monthEnd);
-            $remaining = max(self::CASUAL_LEAVE_MONTHLY_ALLOWANCE - $used, 0);
+        if ($bank->isPaidLeaveType((int) $this->leaveForm['leave_type_id'])) {
+            [$monthStart] = $this->selectedLeaveMonthRange();
+            $remaining = $bank->remainingInMonth($this->employee, $monthStart->year, $monthStart->month);
 
-            return number_format($remaining, 2).' casual day(s) left in '.$monthStart->format('F Y');
+            return number_format($remaining, 2).' paid leave day(s) left in '.$monthStart->format('F Y')
+                .'. Extra days are deducted from salary.';
         }
 
         $balance = $this->employee
@@ -464,59 +437,20 @@ class Index extends Component
         return number_format((float) $balance->closing_balance, 2).' day(s) left';
     }
 
-    private function casualLeaveBank(CarbonImmutable $monthStart, CarbonImmutable $monthEnd): array
+    /**
+     * @return array{allowance:float, used:float, remaining:float, leave_type:?LeaveType}
+     */
+    private function paidLeaveBank(CarbonImmutable $monthStart, CarbonImmutable $monthEnd): array
     {
-        $used = $this->casualLeaveUsed($monthStart, $monthEnd);
+        $bank = app(PaidLeaveBankService::class);
+        $used = $bank->usedInMonth($this->employee, $monthStart->year, $monthStart->month);
 
         return [
-            'allowance' => self::CASUAL_LEAVE_MONTHLY_ALLOWANCE,
+            'allowance' => PaidLeaveBankService::MONTHLY_ALLOWANCE,
             'used' => $used,
-            'remaining' => max(self::CASUAL_LEAVE_MONTHLY_ALLOWANCE - $used, 0),
-            'leave_type' => $this->casualLeaveType(),
+            'remaining' => max(PaidLeaveBankService::MONTHLY_ALLOWANCE - $used, 0),
+            'leave_type' => $bank->paidLeaveType(),
         ];
-    }
-
-    private function casualLeaveUsed(CarbonImmutable $monthStart, CarbonImmutable $monthEnd): float
-    {
-        $leaveType = $this->casualLeaveType();
-
-        if (! $leaveType) {
-            return 0.0;
-        }
-
-        return (float) $this->employee
-            ->leaveApplications()
-            ->where('leave_type_id', $leaveType->id)
-            ->whereIn('status', [
-                LeaveApplication::STATUS_SUBMITTED,
-                LeaveApplication::STATUS_UNDER_REVIEW,
-                LeaveApplication::STATUS_APPROVED,
-            ])
-            ->whereDate('start_date', '<=', $monthEnd->toDateString())
-            ->whereDate('end_date', '>=', $monthStart->toDateString())
-            ->get()
-            ->sum(fn (LeaveApplication $leave): int => $this->overlapDays($leave, $monthStart, $monthEnd));
-    }
-
-    private function casualLeaveType(): ?LeaveType
-    {
-        return LeaveType::query()
-            ->where('status', 'active')
-            ->where(function ($query): void {
-                $query
-                    ->where('code', 'CL')
-                    ->orWhere('code', 'like', 'CL-%')
-                    ->orWhere('name', 'like', '%Casual%');
-            })
-            ->orderByRaw("CASE WHEN code = 'CL' THEN 0 ELSE 1 END")
-            ->first();
-    }
-
-    private function isCasualLeaveType(LeaveType $leaveType): bool
-    {
-        return $leaveType->code === 'CL'
-            || str_starts_with((string) $leaveType->code, 'CL-')
-            || str_contains(strtolower($leaveType->name), 'casual');
     }
 
     private function selectedLeaveMonthRange(): array
@@ -531,14 +465,6 @@ class Index extends Component
     private function totalLeaveDays(string $startDate, string $endDate): int
     {
         return CarbonImmutable::parse($startDate)->diffInDays(CarbonImmutable::parse($endDate)) + 1;
-    }
-
-    private function overlapDays(LeaveApplication $leave, CarbonImmutable $from, CarbonImmutable $to): int
-    {
-        $start = CarbonImmutable::parse($leave->start_date)->max($from);
-        $end = CarbonImmutable::parse($leave->end_date)->min($to);
-
-        return $start->diffInDays($end) + 1;
     }
 
     private function isNonWorkingSaturday(CarbonImmutable $date): bool

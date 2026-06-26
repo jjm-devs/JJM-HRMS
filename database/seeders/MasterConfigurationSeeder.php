@@ -56,6 +56,7 @@ class MasterConfigurationSeeder extends Seeder
             ['HRA', 'House Rent Allowance', 'earning', 'percentage', 0, true, false],
             ['NPS', 'NPS Deduction', 'deduction', 'percentage', 0, false, true],
             ['TAX', 'Income Tax', 'deduction', 'fixed', 0, false, true],
+            ['PTAX', 'PTAX', 'deduction', 'fixed', 0, false, true],
         ] as [$code, $name, $type, $calculationType, $amount, $taxable, $deduction]) {
             SalaryComponent::query()->updateOrCreate(
                 ['code' => $code],
@@ -73,8 +74,7 @@ class MasterConfigurationSeeder extends Seeder
 
         $leaveTypes = [];
         foreach ([
-            ['CL', 'Casual Leave', true, false, true],
-            ['EL', 'Earned Leave', true, false, false],
+            ['PL', 'Paid Leave', true, false, false],
             ['ML', 'Medical Leave', true, true, false],
             ['MAT', 'Maternity Leave', true, true, false],
             ['PAT', 'Paternity Leave', true, true, false],
@@ -95,10 +95,10 @@ class MasterConfigurationSeeder extends Seeder
         $contractualEmploymentTypeId = EmploymentType::query()->where('code', 'CONTRACTUAL')->value('id');
 
         foreach ([
-            ['CL', $regularEmploymentTypeId, 12, 3, 0],
-            ['EL', $regularEmploymentTypeId, 30, 15, 300],
+            // Paid Leave quota is informational; the real cap is the 2/month bank.
+            ['PL', $regularEmploymentTypeId, 24, 31, 0],
             ['ML', $regularEmploymentTypeId, 10, 10, 0],
-            ['CL', $contractualEmploymentTypeId, 10, 3, 0],
+            ['PL', $contractualEmploymentTypeId, 24, 31, 0],
             ['ML', $contractualEmploymentTypeId, 7, 7, 0],
         ] as [$leaveCode, $employmentTypeId, $quota, $maxDays, $carryForward]) {
             if (! $employmentTypeId) {

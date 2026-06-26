@@ -5,7 +5,6 @@ namespace Tests\Feature\Hr;
 use App\Livewire\Hr\Payroll\Index as PayrollIndex;
 use App\Models\Employee;
 use App\Models\LeaveApplication;
-use App\Models\LeaveBalance;
 use App\Models\LeaveType;
 use App\Models\PayrollBatch;
 use App\Models\PayrollItem;
@@ -111,23 +110,18 @@ class PayrollGenerationTest extends TestCase
             ],
         ]);
 
+        // The Paid Leave bank type — 2 free days per calendar month, rest deducts.
         $paidLeave = LeaveType::query()->create([
-            'name' => 'Casual Leave',
-            'code' => 'CL-PAY',
+            'name' => 'Paid Leave',
+            'code' => 'PL',
             'is_paid' => true,
             'status' => 'active',
         ]);
 
-        LeaveBalance::query()->create([
-            'employee_id' => $employee->id,
-            'leave_type_id' => $paidLeave->id,
-            'year' => 2026,
-            'opening_balance' => 1,
-            'closing_balance' => 1,
-        ]);
-
+        // 3 paid-leave days in June → first 2 banked, 3rd is excess (1 LWP day).
         $firstLeave = $this->approvedLeave($employee, $paidLeave, '2026-06-02');
         $secondLeave = $this->approvedLeave($employee, $paidLeave, '2026-06-03');
+        $thirdLeave = $this->approvedLeave($employee, $paidLeave, '2026-06-04');
 
         $this->actingAs($hr);
 
@@ -164,14 +158,86 @@ class PayrollGenerationTest extends TestCase
             'payroll_item_id' => $item->id,
             'leave_application_id' => $firstLeave->id,
             'auto_classification' => 'leave_bank',
+            'deductible_days' => 0,
             'had_sufficient_balance' => true,
         ]);
         $this->assertDatabaseHas('payroll_item_leave_adjustments', [
             'payroll_item_id' => $item->id,
             'leave_application_id' => $secondLeave->id,
+            'auto_classification' => 'leave_bank',
+            'deductible_days' => 0,
+        ]);
+        $this->assertDatabaseHas('payroll_item_leave_adjustments', [
+            'payroll_item_id' => $item->id,
+            'leave_application_id' => $thirdLeave->id,
             'auto_classification' => 'salary_deduct',
+            'deductible_days' => 1,
             'had_sufficient_balance' => false,
         ]);
+    }
+
+    public function test_overlapping_paid_leave_on_same_date_is_not_double_counted(): void
+    {
+        $hr = User::query()->create([
+            'name' => 'Payroll HR',
+            'email' => 'hr-overlap@example.test',
+            'password' => 'password',
+            'is_hr' => true,
+            'status' => 'active',
+        ]);
+
+        $employee = Employee::query()->create([
+            'employee_code' => 'EMP-OVERLAP-00001',
+            'full_name' => 'Overlap Employee',
+            'service_status' => 'active',
+        ]);
+
+        $structure = $employee->salaryStructures()->create([
+            'basic_salary' => 30000,
+            'grade_pay' => 0,
+            'status' => 'active',
+        ]);
+
+        $basic = SalaryComponent::query()->create([
+            'name' => 'Basic Salary',
+            'code' => 'BASIC',
+            'type' => 'earning',
+            'calculation_type' => 'fixed',
+            'default_amount' => 0,
+            'status' => 'active',
+        ]);
+        $structure->employeeSalaryComponents()->create([
+            'salary_component_id' => $basic->id,
+            'amount' => 30000,
+            'calculation_type' => 'fixed',
+            'status' => 'active',
+        ]);
+
+        $paidLeave = LeaveType::query()->create([
+            'name' => 'Paid Leave',
+            'code' => 'PL',
+            'is_paid' => true,
+            'status' => 'active',
+        ]);
+
+        // Employee requests 25th–26th; HR manually records the 26th (overlaps).
+        $this->approvedRange($employee, $paidLeave, '2026-06-25', '2026-06-26');
+        $this->approvedLeave($employee, $paidLeave, '2026-06-26');
+
+        $this->actingAs($hr);
+
+        $batch = app(PayrollGenerationService::class)->generate(
+            periodFrom: '2026-06-01',
+            periodTo: '2026-06-30',
+            paymentDate: '2026-06-30',
+        );
+
+        $item = $batch->items()->firstOrFail();
+
+        // Only 2 distinct days (25, 26), both within the 2/month bank → no deduction.
+        $this->assertSame(0.0, (float) $item->leave_without_pay_days);
+        $this->assertSame(0.0, (float) $item->lwp_deduction);
+        $this->assertSame(30000.0, (float) $item->net_salary);
     }
 
     public function test_payroll_pages_render_primary_actions_and_links(): void
@@ -252,22 +318,31 @@ class PayrollGenerationTest extends TestCase
 
     private function approvedLeave(Employee $employee, LeaveType $leaveType, string $date): LeaveApplication
     {
+        return $this->approvedRange($employee, $leaveType, $date, $date);
+    }
+
+    private function approvedRange(Employee $employee, LeaveType $leaveType, string $startDate, string $endDate): LeaveApplication
+    {
+        $period = \Carbon\CarbonPeriod::create($startDate, $endDate);
+
         $leave = LeaveApplication::query()->create([
             'employee_id' => $employee->id,
             'leave_type_id' => $leaveType->id,
-            'start_date' => $date,
-            'end_date' => $date,
-            'total_days' => 1,
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+            'total_days' => iterator_count($period),
             'reason' => 'Payroll test leave',
             'status' => LeaveApplication::STATUS_APPROVED,
             'approved_at' => now(),
         ]);
 
-        $leave->days()->create([
-            'leave_date' => $date,
-            'duration' => 1,
-            'status' => LeaveApplication::STATUS_APPROVED,
-        ]);
+        foreach (\Carbon\CarbonPeriod::create($startDate, $endDate) as $date) {
+            $leave->days()->create([
+                'leave_date' => $date->format('Y-m-d'),
+                'duration' => 1,
+                'status' => LeaveApplication::STATUS_APPROVED,
+            ]);
+        }
 
         return $leave;
     }

@@ -6,12 +6,12 @@ use App\Models\Employee;
 use App\Models\EmployeeSalaryComponent;
 use App\Models\LeaveApplication;
 use App\Models\LeaveApplicationDay;
-use App\Models\LeaveBalance;
 use App\Models\PayrollBatch;
 use App\Models\PayrollItem;
 use App\Models\PayrollItemLeaveAdjustment;
 use App\Models\SalaryStructure;
 use App\Services\Hr\HrScopeService;
+use App\Services\Leave\PaidLeaveBankService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -31,6 +31,7 @@ class PayrollGenerationService
 
     public function __construct(
         private readonly HrScopeService $hrScope,
+        private readonly PaidLeaveBankService $paidBank,
     ) {}
 
     // ── public entry point ────────────────────────────────────────────────────
@@ -40,7 +41,7 @@ class PayrollGenerationService
         string $periodTo,
         ?string $paymentDate = null,
         ?int $orgUnitId = null,
-        ?int $departmentStreamId = null,
+        array $departmentStreamIds = [],
         string $batchType = 'regular',
         float $defaultDisbursementPct = 100.00,
     ): PayrollBatch {
@@ -68,8 +69,8 @@ class PayrollGenerationService
             $employeeQuery->where('org_unit_id', $orgUnitId);
         }
 
-        if ($departmentStreamId !== null) {
-            $employeeQuery->where('department_stream_id', $departmentStreamId);
+        if (! empty($departmentStreamIds)) {
+            $employeeQuery->whereIn('department_stream_id', $departmentStreamIds);
         }
 
         $employees = $employeeQuery->get();
@@ -77,13 +78,13 @@ class PayrollGenerationService
         // ── load all relevant leave applications in one query ─────────────────
         $leaveMap = $this->buildLeaveMap($employees->pluck('id'), $from, $to);
 
-        // ── load leave balances for all employees + leave types in one query ──
-        $balanceMap = $this->buildBalanceMap($employees->pluck('id'), $from);
+        // ── paid-leave excess dates (beyond the 2/month bank) per employee ────
+        $excessMap = $this->buildPaidLeaveExcessMap($employees->pluck('id'), $from, $to);
 
         return DB::transaction(function () use (
-            $from, $to, $paymentDate, $orgUnitId, $departmentStreamId,
+            $from, $to, $paymentDate, $orgUnitId, $departmentStreamIds,
             $batchType, $defaultDisbursementPct,
-            $employees, $totalWorkingDays, $leaveMap, $balanceMap
+            $employees, $totalWorkingDays, $leaveMap, $excessMap
         ) {
             $batch = PayrollBatch::create([
                 'batch_number'             => $this->nextBatchNumber($to, $batchType),
@@ -93,7 +94,7 @@ class PayrollGenerationService
                 'period_to'                => $to->toDateString(),
                 'payment_date'             => $paymentDate,
                 'org_unit_id'              => $orgUnitId,
-                'department_stream_id'     => $departmentStreamId,
+                'department_stream_id'     => count($departmentStreamIds) === 1 ? $departmentStreamIds[0] : null,
                 'generated_by'             => Auth::id(),
                 'status'                   => 'draft',
             ]);
@@ -117,13 +118,11 @@ class PayrollGenerationService
                 // classify each leave application as salary_deduct / leave_bank / exempt
                 $classifications = $this->classifyLeaves(
                     $employeeLeaves,
-                    $balanceMap->get($employee->id, collect()),
+                    $excessMap->get($employee->id, []),
                 );
 
-                // sum up LWP days from salary_deduct leaves only
-                $lwpDays = $classifications
-                    ->where('auto_classification', 'salary_deduct')
-                    ->sum('leave_days');
+                // LWP days = the deductible portion across all leaves
+                $lwpDays = (float) $classifications->sum('deductible_days');
 
                 // calculate salary components
                 [$itemGross, $itemDeductions, $componentRows] = $this->calculateItem(
@@ -182,6 +181,7 @@ class PayrollGenerationService
                         'payroll_item_id'      => $item->id,
                         'leave_application_id' => $row['leave_application_id'],
                         'leave_days'           => $row['leave_days'],
+                        'deductible_days'      => $row['deductible_days'],
                         'auto_classification'  => $row['auto_classification'],
                         'hr_classification'    => null,
                         'leave_type_name'      => $row['leave_type_name'],
@@ -303,34 +303,46 @@ class PayrollGenerationService
 
     // ── leave classification ──────────────────────────────────────────────────
 
-    private function classifyLeaves(
-        Collection $leaves,
-        Collection $balances,
-    ): Collection {
-        $remainingBalances = $balances
-            ->map(fn (LeaveBalance $balance): float => (float) $balance->closing_balance)
-            ->all();
+    /**
+     * Classify each leave application:
+     *   - Unpaid leave        → salary_deduct (all days).
+     *   - Paid Leave (bank)   → leave_bank for the first 2 days/month, salary_deduct
+     *                           for days beyond the bank (computed from $excessDates).
+     *   - Other paid leave    → exempt (never deducted, e.g. Medical/Maternity).
+     *
+     * @param  array<int, array<int,string>>  $excessByApp  applicationId => excess Y-m-d dates it owns.
+     */
+    private function classifyLeaves(Collection $leaves, array $excessByApp): Collection
+    {
+        return $leaves->sortBy('leave_application_id')->map(function (array $leave) use ($excessByApp): array {
+            $days = (float) $leave['leave_days'];
 
-        return $leaves->sortBy('leave_application_id')->map(function (array $leave) use (&$remainingBalances): array {
-            $isPaid = $leave['leave_type_is_paid'];
-
-            if (! $isPaid) {
+            // Unpaid → full salary deduction
+            if (! $leave['leave_type_is_paid']) {
                 return array_merge($leave, [
+                    'deductible_days'        => $days,
                     'auto_classification'    => 'salary_deduct',
                     'had_sufficient_balance' => false,
                 ]);
             }
 
-            $availableBalance     = $remainingBalances[$leave['leave_type_id']] ?? 0.0;
-            $hasSufficientBalance = $availableBalance >= $leave['leave_days'];
+            // Paid Leave (the monthly bank type)
+            if ($this->paidBank->isPaidLeaveType($leave['leave_type_id'])) {
+                $ownedExcess = $excessByApp[$leave['leave_application_id']] ?? [];
+                $excessInPeriod = (float) count(array_intersect($leave['period_dates'], $ownedExcess));
 
-            if ($hasSufficientBalance) {
-                $remainingBalances[$leave['leave_type_id']] = $availableBalance - (float) $leave['leave_days'];
+                return array_merge($leave, [
+                    'deductible_days'        => $excessInPeriod,
+                    'auto_classification'    => $excessInPeriod > 0 ? 'salary_deduct' : 'leave_bank',
+                    'had_sufficient_balance' => $excessInPeriod <= 0,
+                ]);
             }
 
+            // Other paid leave types (Medical / Maternity / Paternity) → exempt
             return array_merge($leave, [
-                'auto_classification'    => $hasSufficientBalance ? 'leave_bank' : 'salary_deduct',
-                'had_sufficient_balance' => $hasSufficientBalance,
+                'deductible_days'        => 0.0,
+                'auto_classification'    => 'exempt',
+                'had_sufficient_balance' => true,
             ]);
         });
     }
@@ -478,17 +490,42 @@ class PayrollGenerationService
                 'leave_type_name'      => $app->leaveType->name,
                 'leave_type_is_paid'   => (bool) $app->leaveType->is_paid,
                 'leave_days'           => $app->days->sum('duration'),
+                'period_dates'         => $app->days
+                    ->pluck('leave_date')
+                    ->map(fn ($date) => Carbon::parse($date)->toDateString())
+                    ->all(),
             ])->filter(fn ($row) => $row['leave_days'] > 0)->values());
     }
 
-    private function buildBalanceMap(Collection $employeeIds, Carbon $from): Collection
+    /**
+     * For each employee, the Paid-Leave excess dates (beyond the monthly bank)
+     * attributed per leave application. The bank is assessed over the whole
+     * calendar month(s) overlapping the period and de-duplicated by date, so a
+     * day's status is correct even when banked days sit in a neighbouring period
+     * or two applications overlap on the same date.
+     *
+     * @return Collection<int, array<int, array<int,string>>>  employeeId => [applicationId => excess dates]
+     */
+    private function buildPaidLeaveExcessMap(Collection $employeeIds, Carbon $from, Carbon $to): Collection
     {
-        return LeaveBalance::query()
+        $paidType = $this->paidBank->paidLeaveType();
+
+        if (! $paidType) {
+            return collect();
+        }
+
+        $monthsStart = $from->copy()->startOfMonth();
+        $monthsEnd = $to->copy()->endOfMonth();
+
+        return LeaveApplication::query()
             ->whereIn('employee_id', $employeeIds)
-            ->where('year', $from->year)
+            ->where('leave_type_id', $paidType->id)
+            ->where('status', LeaveApplication::STATUS_APPROVED)
+            ->where('start_date', '<=', $monthsEnd->toDateString())
+            ->where('end_date', '>=', $monthsStart->toDateString())
             ->get()
             ->groupBy('employee_id')
-            ->map(fn (Collection $balances) => $balances->keyBy('leave_type_id'));
+            ->map(fn (Collection $apps) => $this->paidBank->allocateExcess($apps));
     }
 
     // ── working days ──────────────────────────────────────────────────────────

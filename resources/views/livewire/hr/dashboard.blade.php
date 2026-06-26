@@ -19,7 +19,7 @@
                         <span class="font-medium text-slate-900">Rahul Sharma</span>
                         <p class="text-xs text-slate-400">EMP-001</p>
                     </x-ui.table.td>
-                    <x-ui.table.td>Casual Leave</x-ui.table.td>
+                    <x-ui.table.td>Paid Leave</x-ui.table.td>
                     <x-ui.table.td>Jun 1 – Jun 3 <span class="text-slate-400">(3 days)</span></x-ui.table.td>
                     <x-ui.table.td muted>May 26, 2026</x-ui.table.td>
                     <x-ui.table.td><x-ui.badge variant="warning">Pending</x-ui.badge></x-ui.table.td>

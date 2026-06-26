@@ -51,43 +51,63 @@
             };
         @endphp
 
-        <div class="flex items-center gap-2">
-            <span class="inline-flex items-center px-3 py-1 text-sm font-semibold {{ $statusClass }}">
-                {{ $batch->statusLabel() }}
-            </span>
-            @if ($currentRoleLabel && $batch->status === 'pending')
-                <span class="inline-flex items-center bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-700">
-                    With {{ $currentRoleLabel }}
+        <div class="flex flex-col items-end gap-2">
+            {{-- status badges --}}
+            <div class="flex items-center gap-2">
+                <span class="inline-flex items-center px-3 py-1 text-sm font-semibold {{ $statusClass }}">
+                    {{ $batch->statusLabel() }}
                 </span>
+                @if ($currentRoleLabel && $batch->status === 'pending')
+                    <span class="inline-flex items-center bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-700">
+                        With {{ $currentRoleLabel }}
+                    </span>
+                @endif
+                @if ($batch->disbursed_at)
+                    <span class="inline-flex items-center bg-purple-50 px-3 py-1 text-xs text-purple-600">
+                        Disbursed {{ $batch->disbursed_at->format('d M Y') }}
+                    </span>
+                @endif
+            </div>
+
+            {{-- workflow decisions: destructive/back actions left, primary forward action right --}}
+            @if ($canDiscardBatch || $canSubmitWorkflow || $canActOnWorkflow || $canMarkDisbursed)
+                <div class="flex flex-wrap items-center justify-end gap-2">
+                    @if ($canDiscardBatch)
+                        <x-ui.button variant="danger" wire:click="openDiscardModal">Discard</x-ui.button>
+                    @endif
+                    @if ($canActOnWorkflow)
+                        <x-ui.button variant="secondary" wire:click="openReturnModal">Return to HR</x-ui.button>
+                    @endif
+                    @if ($canSubmitWorkflow)
+                        <x-ui.button variant="primary" wire:click="openSubmitModal">
+                            {{ $batch->status === 'returned' ? 'Resubmit' : 'Submit' }}
+                        </x-ui.button>
+                    @endif
+                    @if ($canActOnWorkflow)
+                        <x-ui.button variant="primary" wire:click="openApproveModal">
+                            {{ $currentRoleLabel === $finalApproverLabel ? 'Final Approve & Lock' : 'Approve & Forward' }}
+                        </x-ui.button>
+                    @endif
+                    @if ($canMarkDisbursed)
+                        <x-ui.button variant="primary" wire:click="openMarkDisbursedModal">Mark as Disbursed</x-ui.button>
+                    @endif
+                </div>
             @endif
-            @if ($canDiscardBatch)
-                <x-ui.button variant="secondary" wire:click="openDiscardModal">Discard</x-ui.button>
-            @endif
-            @if ($canSubmitWorkflow)
-                <x-ui.button wire:click="openSubmitModal">
-                    {{ $batch->status === 'returned' ? 'Resubmit' : 'Submit' }}
-                </x-ui.button>
-            @endif
-            @if ($canActOnWorkflow)
-                <x-ui.button variant="secondary" wire:click="openReturnModal">Return to HR</x-ui.button>
-                <x-ui.button wire:click="openApproveModal">
-                    {{ $currentRoleLabel === $finalApproverLabel ? 'Final Approve & Lock' : 'Approve & Forward' }}
-                </x-ui.button>
-            @endif
-            @if ($canGeneratePayslips)
-                <x-ui.button variant="outline" wire:click="openGeneratePayslipsModal">
-                    Generate Payslips
-                </x-ui.button>
-            @endif
-            @if ($canGenerateFinalDocuments)
-                @foreach ($finalDocumentTypes as $type => $label)
-                    <x-ui.button variant="outline" wire:click="downloadFinalPayrollDocument('{{ $type }}')">
-                        Generate {{ $label }}
-                    </x-ui.button>
-                @endforeach
-                <x-ui.button variant="secondary" wire:click="openUploadBatchDocumentModal">
-                    Upload Batch Document
-                </x-ui.button>
+
+            {{-- document utilities: uniform low-emphasis group, separated from decisions --}}
+            @if ($canGenerateFinalDocuments || $canGeneratePayslips)
+                <div class="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-2">
+                    @if ($canGeneratePayslips)
+                        <x-ui.button variant="outline" wire:click="openGeneratePayslipsModal">Regenerate Payslips</x-ui.button>
+                    @endif
+                    @if ($canGenerateFinalDocuments)
+                        <x-ui.button variant="outline" wire:click="openSanctionOrderModal">Generate Sanction Order</x-ui.button>
+                        @foreach ($finalDocumentTypes as $type => $label)
+                            <x-ui.button variant="outline" wire:click="downloadFinalPayrollDocument('{{ $type }}')">Generate {{ $label }}</x-ui.button>
+                        @endforeach
+                        <x-ui.button variant="outline" wire:click="openUploadBatchDocumentModal">Upload Document</x-ui.button>
+                    @endif
+                </div>
             @endif
         </div>
     </div>
@@ -276,7 +296,7 @@
     </div>
 
     {{-- batch documents --}}
-    <x-ui.card class="mt-5" title="Batch Documents" description="Generated payroll letters and uploaded signed copies for this batch.">
+    <x-ui.card class="mt-5" title="Batch Documents" description="Generated payroll letters, salary statements, and uploaded signed copies for this batch.">
         @if ($batchDocuments->isEmpty())
             <p class="py-6 text-center text-sm text-slate-400">No batch documents attached yet.</p>
         @else
@@ -435,6 +455,14 @@
                                 Issued
                             </span>
                             <p class="text-xs text-slate-400">{{ $item->payslip->generated_at?->format('d M Y') }}</p>
+                            <a
+                                href="{{ route('hr.payroll.payslip.print', $item->payslip) }}"
+                                target="_blank"
+                                rel="noopener"
+                                class="mt-0.5 inline-block text-xs font-medium text-blue-700 hover:underline"
+                            >
+                                View / Print
+                            </a>
                         @else
                             <span class="text-xs text-slate-400">Not generated</span>
                         @endif
@@ -548,17 +576,88 @@
         </x-slot:footer>
     </x-ui.modal>
 
-    {{-- generate payslips modal --}}
-    <x-ui.modal name="generate-payslips" title="Generate Payslips">
+    {{-- regenerate payslips modal --}}
+    <x-ui.modal name="generate-payslips" title="Regenerate Payslips">
         <p class="text-sm text-slate-600">
-            Generate or refresh payslip documents for all employees in <strong>{{ $batch->batch_number }}</strong>.
-            Existing payslip documents will be updated with a new version.
+            Regenerate payslip documents for all employees in <strong>{{ $batch->batch_number }}</strong>.
+            Any existing payslips will be refreshed with a new version.
         </p>
         <x-slot:footer>
             <x-ui.button variant="secondary" x-on:click="$dispatch('close-modal', { name: 'generate-payslips' })">Cancel</x-ui.button>
             <x-ui.button wire:click="generatePayslips" wire:loading.attr="disabled">
-                <span wire:loading.remove wire:target="generatePayslips">Generate Payslips</span>
-                <span wire:loading wire:target="generatePayslips">Generating...</span>
+                <span wire:loading.remove wire:target="generatePayslips">Regenerate Payslips</span>
+                <span wire:loading wire:target="generatePayslips">Regenerating...</span>
+            </x-ui.button>
+        </x-slot:footer>
+    </x-ui.modal>
+
+    {{-- generate sanction order modal --}}
+    <x-ui.modal name="generate-sanction-order" title="Generate Sanction Order">
+        <div class="space-y-4">
+            <p class="text-sm text-slate-600">
+                Generate the editable Word sanction order for <strong>{{ $batch->batch_number }}</strong>.
+                Figures are taken from this batch automatically.
+            </p>
+
+            <x-ui.select
+                wire:model="sanctionActivityId"
+                label="Activity"
+                :options="$sanctionActivities"
+                placeholder="Select activity"
+                :error="$errors->first('sanctionActivityId')"
+            />
+
+            <x-ui.select
+                wire:model="sanctionSignatory"
+                label="Signatory"
+                :options="$sanctionSignatories"
+                :error="$errors->first('sanctionSignatory')"
+            />
+
+            <div class="grid gap-4 sm:grid-cols-2">
+                <x-ui.input
+                    wire:model="sanctionReferenceSerial"
+                    label="Reference Serial"
+                    hint="Appended after the No. prefix. Leave blank to fill by hand."
+                    :error="$errors->first('sanctionReferenceSerial')"
+                />
+                <x-ui.input
+                    wire:model="sanctionReferenceDate"
+                    label="Reference Date"
+                    placeholder="e.g. 25.06.2026"
+                    hint="Leave blank to fill by hand."
+                    :error="$errors->first('sanctionReferenceDate')"
+                />
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+                <x-ui.input
+                    wire:model="sanctionMemoSerial"
+                    label="Memo Serial"
+                    hint="Appended after the Memo No. prefix."
+                    :error="$errors->first('sanctionMemoSerial')"
+                />
+                <x-ui.input
+                    wire:model="sanctionMemoDate"
+                    label="Memo Date"
+                    placeholder="e.g. 25.06.2026"
+                    :error="$errors->first('sanctionMemoDate')"
+                />
+            </div>
+
+            <x-ui.textarea
+                wire:model="sanctionCopyTo"
+                label="Copy To"
+                rows="4"
+                hint="One recipient per line. Edit as needed for this letter."
+                :error="$errors->first('sanctionCopyTo')"
+            />
+        </div>
+        <x-slot:footer>
+            <x-ui.button variant="secondary" x-on:click="$dispatch('close-modal', { name: 'generate-sanction-order' })">Cancel</x-ui.button>
+            <x-ui.button wire:click="generateSanctionOrder" wire:loading.attr="disabled">
+                <span wire:loading.remove wire:target="generateSanctionOrder">Generate &amp; Download</span>
+                <span wire:loading wire:target="generateSanctionOrder">Generating...</span>
             </x-ui.button>
         </x-slot:footer>
     </x-ui.modal>
@@ -567,12 +666,12 @@
     <x-ui.modal name="upload-batch-document" title="Upload Batch Document">
         <div class="space-y-4">
             <p class="text-sm text-slate-600">
-                Attach the signed or printed copy for <strong>{{ $batch->batch_number }}</strong>. It will also appear in the HR Documents module.
+                Attach the signed, printed, or supporting copy for <strong>{{ $batch->batch_number }}</strong>. It will also appear in the HR Documents module.
             </p>
             <x-ui.input
                 wire:model="batchDocumentTitle"
                 label="Document Title"
-                placeholder="Signed sanction letter"
+                placeholder="Signed sanction letter or salary statement"
                 required
                 :error="$errors->first('batchDocumentTitle')"
             />
@@ -600,6 +699,25 @@
                 <span wire:loading.remove wire:target="uploadBatchDocument">Upload</span>
                 <span wire:loading wire:target="uploadBatchDocument">Uploading...</span>
             </x-ui.button>
+        </x-slot:footer>
+    </x-ui.modal>
+
+    {{-- mark disbursed modal --}}
+    <x-ui.modal name="mark-disbursed" title="Mark as Disbursed">
+        <div class="space-y-3">
+            <p class="text-sm text-slate-600">
+                Confirm that salary for <strong>{{ $batch->batch_number }}</strong> has been credited to employees.
+                @if ($batch->payment_date)
+                    <br>Scheduled payment date: <strong>{{ $batch->payment_date->format('d M Y') }}</strong>.
+                @endif
+            </p>
+            <p class="text-sm text-slate-500">
+                Payslips will be generated automatically for all employees in this batch.
+            </p>
+        </div>
+        <x-slot:footer>
+            <x-ui.button variant="secondary" x-on:click="$dispatch('close-modal', { name: 'mark-disbursed' })">Cancel</x-ui.button>
+            <x-ui.button wire:click="markAsDisbursed">Confirm Disbursed</x-ui.button>
         </x-slot:footer>
     </x-ui.modal>
 

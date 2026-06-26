@@ -2,6 +2,9 @@
 
 use App\Http\Middleware\EnsureEmployeeUser;
 use App\Http\Middleware\EnsurePasswordIsChanged;
+use App\Models\Payslip;
+use App\Services\Payroll\PayslipViewService;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('employee')
@@ -38,4 +41,30 @@ Route::prefix('employee')
             'livewireComponent' => 'employee.payslips.index',
             'title' => 'Payslips',
         ]))->name('payslips.index');
+
+        Route::get('/payslips/{payslip}/print', function (Payslip $payslip) {
+            $employee = Auth::user()->employee()->firstOrFail();
+
+            abort_unless($payslip->status === 'issued', 404);
+            abort_unless(
+                $payslip->payrollItem()->where('employee_id', $employee->id)->exists(),
+                403,
+            );
+
+            $payslip->loadMissing('document');
+            $payslip->document?->accessLogs()->create([
+                'user_id' => Auth::id(),
+                'action' => 'download',
+                'ip_address' => request()->ip(),
+                'user_agent' => request()->userAgent(),
+            ]);
+            $payslip->increment('download_count');
+
+            return app(PayslipViewService::class)->inlinePrintResponse($payslip);
+        })->name('payslips.print');
+
+        Route::get('/policy', fn () => view('app.page', [
+            'livewireComponent' => 'employee.policy.index',
+            'title' => 'Policy',
+        ]))->name('policy.index');
     });

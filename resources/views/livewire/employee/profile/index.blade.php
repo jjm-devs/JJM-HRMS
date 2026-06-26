@@ -26,6 +26,13 @@
                 'Blood Group' => $employee->blood_group,
                 'PAN Number' => $employee->pan_number,
             ];
+
+            $bankRows = [
+                'Account Number' => $employee->bank_account_number,
+                'IFSC Code' => $employee->bank_ifsc_code,
+                'Bank Name' => $employee->bank_name,
+                'Branch' => $employee->bank_branch,
+            ];
         @endphp
 
         <div class="grid gap-4 xl:grid-cols-3">
@@ -179,6 +186,19 @@
             </div>
         @elseif ($activeTab === 'family')
             @include('livewire.shared.employee-family-members')
+        @elseif ($activeTab === 'bank')
+            <div class="mt-5">
+                <x-ui.card title="Bank Account Details">
+                    <dl class="grid gap-4 sm:grid-cols-2">
+                        @foreach ($bankRows as $label => $value)
+                            <div>
+                                <dt class="text-xs font-medium uppercase tracking-wide text-slate-500">{{ $label }}</dt>
+                                <dd class="mt-1 text-sm font-medium text-slate-900">{{ $value ?: '-' }}</dd>
+                            </div>
+                        @endforeach
+                    </dl>
+                </x-ui.card>
+            </div>
         @else
             <div class="mt-5">
                 <x-ui.card title="Documents">

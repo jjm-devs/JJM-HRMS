@@ -5,6 +5,7 @@
     'disabled' => false,
     'wire'    => null,        // e.g. "click='save'"
     'href' => null,
+    'textcolor' => null,
 ])
 
 @php
@@ -24,7 +25,22 @@ $sizes = [
     'lg' => 'px-5 py-2.5 text-sm',
 ];
 
-$classes = $base . ' ' . $variants[$variant] . ' ' . $sizes[$size];
+$textcolors = [
+    'primary'   => 'text-white',
+    'secondary' => 'text-slate-700',
+    'danger'    => 'text-white',
+    'ghost'     => 'text-slate-600',
+    'outline'   => 'text-slate-700',
+];
+
+$resolvedTextColor = match($textcolor) {
+    'primary'   => 'text-green-700',
+    'secondary' => 'text-blue-700',
+    'danger'    => 'text-red-600',
+    default     => $textcolors[$variant] ?? 'text-slate-600',
+};
+
+$classes = $base . ' ' . $variants[$variant] . ' ' . $sizes[$size] . ' ' . $resolvedTextColor;
 @endphp
 
 @if ($href)

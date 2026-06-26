@@ -30,7 +30,7 @@ class LeaveApplicationDocumentService
             ->latest('version')
             ->first();
         $version = ($existing?->version ?? 0) + 1;
-        $fileName = 'leave-application-'.$leave->id.'.pdf';
+        $fileName = 'leave-application-'.$leave->id.'-'.$user->name.'.pdf';
         $path = "leave-requests/{$leave->id}/generated/leave-application-v{$version}.pdf";
 
         $pdf = $this->pdf->make(

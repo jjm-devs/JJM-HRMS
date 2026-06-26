@@ -67,8 +67,20 @@ class DatabaseSeeder extends Seeder
         );
 
         DepartmentStream::query()->updateOrCreate(
-            ['code' => 'JJM'],
-            ['name' => 'JJM', 'status' => 'active'],
+            ['code' => 'JJMHQ'],
+            ['name' => 'JJM HQ', 'status' => 'active'],
+        );
+        DepartmentStream::query()->updateOrCreate(
+            ['code' => 'JJMSLR'],
+            ['name' => 'JJM SLR', 'status' => 'active'],
+        );
+        DepartmentStream::query()->updateOrCreate(
+            ['code' => 'JJMKRC'],
+            ['name' => 'JJM KRC', 'status' => 'active'],
+        );
+        DepartmentStream::query()->updateOrCreate(
+            ['code' => 'JJMUNICEF'],
+            ['name' => 'JJM UNICEF', 'status' => 'active'],
         );
 
         EmploymentType::query()->updateOrCreate(
@@ -160,5 +172,6 @@ class DatabaseSeeder extends Seeder
         );
 
         $this->call(MasterConfigurationSeeder::class);
+        $this->call(SanctionActivitySeeder::class);
     }
 }

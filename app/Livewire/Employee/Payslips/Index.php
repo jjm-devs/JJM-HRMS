@@ -5,7 +5,6 @@ namespace App\Livewire\Employee\Payslips;
 use App\Models\Employee;
 use App\Models\Payslip;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 
 class Index extends Component
@@ -18,26 +17,6 @@ class Index extends Component
     {
         $this->employee = Auth::user()->employee()->firstOrFail();
         $this->filterYear = now()->format('Y');
-    }
-
-    public function downloadPayslip(int $payslipId)
-    {
-        $payslip = $this->payslipForEmployee($payslipId);
-        $document = $payslip->document;
-
-        abort_if(! $document, 404);
-        abort_unless(Storage::disk($document->disk)->exists($document->file_path), 404);
-
-        $document->accessLogs()->create([
-            'user_id' => Auth::id(),
-            'action' => 'download',
-            'ip_address' => request()->ip(),
-            'user_agent' => request()->userAgent(),
-        ]);
-
-        $payslip->increment('download_count');
-
-        return Storage::disk($document->disk)->download($document->file_path, $document->file_name);
     }
 
     public function render()
@@ -64,16 +43,6 @@ class Index extends Component
                 'latest' => $payslips->first(),
             ],
         ]);
-    }
-
-    private function payslipForEmployee(int $payslipId): Payslip
-    {
-        return Payslip::query()
-            ->with(['document', 'payrollItem.payrollBatch'])
-            ->whereKey($payslipId)
-            ->where('status', 'issued')
-            ->whereHas('payrollItem', fn ($query) => $query->where('employee_id', $this->employee->id))
-            ->firstOrFail();
     }
 
     private function availableYears(): array

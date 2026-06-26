@@ -287,6 +287,56 @@
                 </x-ui.card>
             </div>
         </div>
+    @elseif ($activeTab === 'bank')
+        <div class="mt-5 space-y-5">
+            @if (session('bank_status'))
+                <x-ui.alert variant="success">{{ session('bank_status') }}</x-ui.alert>
+            @endif
+
+            <x-ui.card title="Bank Account Details">
+                <form wire:submit="saveBankDetails" class="space-y-5">
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <x-ui.input
+                            wire:model="bankForm.bank_account_number"
+                            label="Account Number"
+                            maxlength="40"
+                            autocomplete="off"
+                            :error="$errors->first('bankForm.bank_account_number')"
+                        />
+
+                        <x-ui.input
+                            wire:model="bankForm.bank_ifsc_code"
+                            label="IFSC Code"
+                            maxlength="11"
+                            autocomplete="off"
+                            class="uppercase"
+                            :error="$errors->first('bankForm.bank_ifsc_code')"
+                        />
+
+                        <x-ui.input
+                            wire:model="bankForm.bank_name"
+                            label="Bank Name"
+                            maxlength="150"
+                            autocomplete="off"
+                            :error="$errors->first('bankForm.bank_name')"
+                        />
+
+                        <x-ui.input
+                            wire:model="bankForm.bank_branch"
+                            label="Branch"
+                            maxlength="150"
+                            autocomplete="off"
+                            :error="$errors->first('bankForm.bank_branch')"
+                        />
+                    </div>
+
+                    <div class="flex items-center justify-end gap-2">
+                        <x-ui.button wire:click="resetBankForm" variant="outline">Reset</x-ui.button>
+                        <x-ui.button type="submit" variant="primary">Save Bank Details</x-ui.button>
+                    </div>
+                </form>
+            </x-ui.card>
+        </div>
     @elseif ($activeTab === 'family')
         @include('livewire.shared.employee-family-members')
     @elseif ($activeTab === 'salary')

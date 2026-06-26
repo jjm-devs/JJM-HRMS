@@ -125,8 +125,7 @@ class LeaveReview extends Component
         $this->item->load('leaveAdjustments');
 
         $lwpDays = $this->item->leaveAdjustments
-            ->filter(fn (PayrollItemLeaveAdjustment $adj) => $adj->isSalaryDeduct())
-            ->sum('leave_days');
+            ->sum(fn (PayrollItemLeaveAdjustment $adj) => $adj->deductedDays());
 
         // remove old LWP component row and reinsert with new amount
         $this->item->components()->where('name', 'Leave Without Pay')->delete();

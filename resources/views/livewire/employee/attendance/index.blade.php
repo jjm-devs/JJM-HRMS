@@ -24,20 +24,20 @@
 
     <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <x-ui.stat-card
-            label="Casual Leave Left"
-            :value="number_format($casualBank['remaining'], 2)"
+            label="Paid Leave Left"
+            :value="number_format($paidLeaveBank['remaining'], 2)"
             hint="2 days per month"
             variant="success"
         />
         <x-ui.stat-card
-            label="Casual Used"
-            :value="number_format($casualBank['used'], 2)"
-            hint="{{ $casualBank['leave_type']?->name ?? 'Casual Leave' }}"
+            label="Paid Leave Used"
+            :value="number_format($paidLeaveBank['used'], 2)"
+            hint="{{ $paidLeaveBank['leave_type']?->name ?? 'Paid Leave' }}"
             variant="warning"
         />
         <x-ui.stat-card
             label="Monthly Bank"
-            :value="number_format($casualBank['allowance'], 2)"
+            :value="number_format($paidLeaveBank['allowance'], 2)"
             hint="{{ \Carbon\CarbonImmutable::createFromFormat('Y-m', $month)->format('F Y') }}"
             variant="info"
         />

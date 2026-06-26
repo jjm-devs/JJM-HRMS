@@ -146,7 +146,7 @@ class Index extends Component
         $this->cancelLeaveRecord($leaveId);
     }
 
-    public function approveLeaveRequest(int $leaveId): void
+    public function rejectLeaveRequest(int $leaveId): void
     {
         $leave = $this->leaveRequestForAction($leaveId);
 
@@ -155,9 +155,9 @@ class Index extends Component
             403,
         );
 
-        $this->approveRequest($leave, null);
+        $this->rejectRequest($leave, null);
 
-        session()->flash('leave_status', 'Leave request approved.');
+        session()->flash('leave_status', 'Leave request rejected.');
     }
 
     public function openApproveLeaveRequestModal(int $leaveId): void
@@ -485,7 +485,7 @@ class Index extends Component
         }
 
         $query = LeaveApplication::query()
-            ->with(['employee', 'leaveType', 'documents'])
+            ->with(['employee', 'employee.designation', 'employee.departmentStream', 'employee.orgUnit', 'leaveType', 'documents', 'approvedBy'])
             ->where('source', LeaveApplication::SOURCE_EMPLOYEE_REQUEST)
             ->latest('id');
 
@@ -517,6 +517,20 @@ class Index extends Component
 
         $leave->days()->update([
             'status' => LeaveApplication::STATUS_APPROVED,
+        ]);
+    }
+
+    private function rejectRequest(LeaveApplication $leave, ?string $remarks): void
+    {
+        $leave->update([
+            'status' => LeaveApplication::STATUS_REJECTED,
+            'rejected_by' => Auth::id(),
+            'rejected_at' => now(),
+            'approval_remarks' => $remarks,
+        ]);
+
+        $leave->days()->update([
+            'status' => LeaveApplication::STATUS_REJECTED,
         ]);
     }
 
@@ -684,6 +698,13 @@ class Index extends Component
         $to = CarbonImmutable::parse($this->dateTo)->endOfDay();
 
         return [$from, $to];
+    }
+
+    public function openLeaveDetail(int $leaveId): void
+    {
+        $this->leaveRequestForAction($leaveId);
+        $this->selectedLeaveRequestId = $leaveId;
+        $this->dispatch('open-modal', name: 'employee-leave-detail');
     }
 
     private function tabs(): array

@@ -16,6 +16,43 @@ class EmployeeFamilyAndSalaryTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_hr_can_update_employee_bank_details(): void
+    {
+        $hr = User::query()->create([
+            'name' => 'HR User',
+            'email' => 'hr-bank@example.test',
+            'password' => 'password',
+            'is_hr' => true,
+            'status' => 'active',
+        ]);
+
+        $employee = Employee::query()->create([
+            'employee_code' => 'EMP-BANK-00001',
+            'full_name' => 'Bank Employee',
+            'service_status' => 'active',
+        ]);
+
+        $this->actingAs($hr);
+
+        Livewire::test(Show::class, ['employee' => $employee])
+            ->set('activeTab', 'bank')
+            ->set('bankForm.bank_account_number', '123456789012')
+            ->set('bankForm.bank_ifsc_code', 'sbin0001234')
+            ->set('bankForm.bank_name', 'State Bank of India')
+            ->set('bankForm.bank_branch', 'Dispur Branch')
+            ->call('saveBankDetails')
+            ->assertHasNoErrors()
+            ->assertSee('Bank account details updated successfully.');
+
+        $this->assertDatabaseHas('employees', [
+            'id' => $employee->id,
+            'bank_account_number' => '123456789012',
+            'bank_ifsc_code' => 'SBIN0001234',
+            'bank_name' => 'State Bank of India',
+            'bank_branch' => 'Dispur Branch',
+        ]);
+    }
+
     public function test_hr_can_manage_employee_family_members(): void
     {
         $hr = User::query()->create([

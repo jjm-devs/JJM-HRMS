@@ -32,6 +32,7 @@ class PayrollBatch extends Model
         'status',
         'approved_at',
         'locked_at',
+        'disbursed_at',
     ];
 
     protected function casts(): array
@@ -42,6 +43,7 @@ class PayrollBatch extends Model
             'payment_date'             => 'date',
             'approved_at'              => 'datetime',
             'locked_at'                => 'datetime',
+            'disbursed_at'             => 'datetime',
             'default_disbursement_pct' => 'decimal:2',
         ];
     }

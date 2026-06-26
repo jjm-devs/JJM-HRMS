@@ -378,6 +378,11 @@
                         <x-ui.table.td>
                             <span class="font-medium text-slate-900">{{ $request->employee?->full_name ?? '-' }}</span>
                             <p class="text-xs text-slate-400">{{ $request->employee?->employee_code ?? '-' }}</p>
+                            <p class="text-xs text-slate-400">
+                                {{ collect([$request->employee?->designation?->name, $request->employee?->departmentStream?->name])->filter()->implode(' · ') }}</p>
+                            <x-ui.badge :variant="'info'">
+                                {{ $request->employee?->orgUnit?->name ?? '-' }}
+                            </x-ui.badge>
                         </x-ui.table.td>
                         <x-ui.table.td>{{ $request->leaveType?->name ?? '-' }}</x-ui.table.td>
                         <x-ui.table.td>
@@ -412,12 +417,13 @@
                             @endif
                         </x-ui.table.td>
                         <x-ui.table.td>
-                            <div class="flex flex-wrap items-center gap-1">
+                            <div class="flex flex-col gap-1">
                                 @if (in_array($request->status, ['submitted', 'under_review'], true))
-                                    <x-ui.button wire:click="approveLeaveRequest({{ $request->id }})" variant="ghost" size="sm">Approve</x-ui.button>
-                                    <x-ui.button wire:click="openApproveLeaveRequestModal({{ $request->id }})" variant="ghost" size="sm">Upload & Approve</x-ui.button>
+                                    <x-ui.button wire:click="openApproveLeaveRequestModal({{ $request->id }})" variant="ghost" size="sm" class="text-green-700 hover:text-green-800">Approve</x-ui.button>
+                                    <x-ui.button wire:click="rejectLeaveRequest({{ $request->id }})" variant="ghost" size="sm" class="text-red-600 hover:text-red-700">Reject</x-ui.button>
                                 @endif
                                 <x-ui.button wire:click="printLeaveApplication({{ $request->id }})" variant="ghost" size="sm">Print</x-ui.button>
+                                <x-ui.button wire:click="openLeaveDetail({{ $request->id }})" variant="ghost" size="sm" class="text-blue-700 hover:text-blue-800">View Details</x-ui.button>
                             </div>
                         </x-ui.table.td>
                     </tr>
@@ -468,6 +474,118 @@
                 <span wire:loading.remove wire:target="approveSelectedLeaveRequest">Approve</span>
                 <span wire:loading wire:target="approveSelectedLeaveRequest">Approving...</span>
             </x-ui.button>
+        </x-slot:footer>
+    </x-ui.modal>
+    <x-ui.modal name="employee-leave-detail" title="Leave Details" size="lg">
+        @php $selectedLeave = $selectedLeaveRequestId ? $employeeLeaveRequests->firstWhere('id', $selectedLeaveRequestId) : null; @endphp
+        @if ($selectedLeave)
+            <div class="space-y-4">
+
+                {{-- Employee Info --}}
+                <div class="border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p class="text-sm font-semibold text-slate-900">{{ $selectedLeave->employee?->full_name ?? '-' }}</p>
+                    <p class="text-xs text-slate-500">{{ $selectedLeave->employee?->employee_code ?? '-' }}</p>
+                    <div class="mt-1 flex flex-wrap gap-2">
+                        @if ($selectedLeave->employee?->designation)
+                            <x-ui.badge variant="default">{{ $selectedLeave->employee->designation->name }}</x-ui.badge>
+                        @endif
+                        @if ($selectedLeave->employee?->departmentStream)
+                            <x-ui.badge variant="default">{{ $selectedLeave->employee->departmentStream->name }}</x-ui.badge>
+                        @endif
+                        @if ($selectedLeave->employee?->orgUnit)
+                            <x-ui.badge variant="info">{{ $selectedLeave->employee->orgUnit->name }}</x-ui.badge>
+                        @endif
+                    </div>
+                </div>
+
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <div class="border border-slate-100 bg-slate-50 px-3 py-2">
+                        <p class="text-xs font-medium uppercase tracking-wide text-slate-400">Leave Type</p>
+                        <p class="text-sm font-semibold text-slate-900">{{ $selectedLeave->leaveType?->name ?? '-' }}</p>
+                    </div>
+                    <div class="border border-slate-100 bg-slate-50 px-3 py-2">
+                        <p class="text-xs font-medium uppercase tracking-wide text-slate-400">Status</p>
+                        <x-ui.badge :variant="$selectedLeave->status === 'approved' ? 'success' : ($selectedLeave->status === 'rejected' ? 'danger' : 'warning')">
+                            {{ str_replace('_', ' ', ucfirst($selectedLeave->status)) }}
+                        </x-ui.badge>
+                    </div>
+                    <div class="border border-slate-100 bg-slate-50 px-3 py-2">
+                        <p class="text-xs font-medium uppercase tracking-wide text-slate-400">Period</p>
+                        <p class="text-sm text-slate-700">
+                            {{ $selectedLeave->start_date?->format('d M Y') }} to {{ $selectedLeave->end_date?->format('d M Y') }}
+                        </p>
+                    </div>
+                    <div class="border border-slate-100 bg-slate-50 px-3 py-2">
+                        <p class="text-xs font-medium uppercase tracking-wide text-slate-400">Days</p>
+                        <p class="text-sm font-semibold text-slate-900">{{ number_format((float) $selectedLeave->total_days, 2) }}</p>
+                    </div>
+                    <div class="border border-slate-100 bg-slate-50 px-3 py-2">
+                        <p class="text-xs font-medium uppercase tracking-wide text-slate-400">Requested On</p>
+                        <p class="text-sm text-slate-700">{{ $selectedLeave->created_at?->format('d M Y') ?? '-' }}</p>
+                    </div>
+                    <div class="border border-slate-100 bg-slate-50 px-3 py-2">
+                        <p class="text-xs font-medium uppercase tracking-wide text-slate-400">Contact During Leave</p>
+                        <p class="text-sm text-slate-700">{{ $selectedLeave->contact_during_leave ?: '-' }}</p>
+                    </div>
+                </div>
+
+                <div>
+                    <p class="text-xs font-medium uppercase tracking-wide text-slate-400">Reason</p>
+                    <p class="mt-1 text-sm text-slate-700">{{ $selectedLeave->reason ?: '-' }}</p>
+                </div>
+
+                @if ($selectedLeave->approval_remarks || $selectedLeave->approvedBy)
+                    <div>
+                        <p class="text-xs font-medium uppercase tracking-wide text-slate-400">Approval</p>
+                        <p class="mt-1 text-sm text-slate-700">
+                            @if ($selectedLeave->approvedBy)
+                                Approved by {{ $selectedLeave->approvedBy->name }}
+                                @if ($selectedLeave->approved_at)
+                                    on {{ $selectedLeave->approved_at->format('d M Y') }}
+                                @endif
+                            @else
+                                Awaiting approval
+                            @endif
+                        </p>
+                        @if ($selectedLeave->approval_remarks)
+                            <p class="mt-1 text-sm text-slate-600">{{ $selectedLeave->approval_remarks }}</p>
+                        @endif
+                    </div>
+                @endif
+
+                <div>
+                    <p class="text-xs font-medium uppercase tracking-wide text-slate-400">Documents</p>
+                    @if ($selectedLeave->documents->isEmpty())
+                        <p class="mt-2 text-sm text-slate-400">No documents attached.</p>
+                    @else
+                        <div class="mt-2 space-y-2">
+                            @foreach ($selectedLeave->documents as $document)
+                                <div class="flex flex-wrap items-center justify-between gap-2 border border-slate-100 bg-slate-50 px-3 py-2">
+                                    <div>
+                                        <p class="text-sm font-medium text-slate-900">{{ $document->title }}</p>
+                                        <p class="text-xs text-slate-400">
+                                            {{ $document->file_name }} · {{ str_replace('_', ' ', ucfirst($document->status)) }}
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        wire:click="downloadLeaveRequestDocument({{ $document->id }})"
+                                        class="text-sm font-medium text-blue-700 hover:underline"
+                                    >
+                                        Download
+                                    </button>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+                </div>
+            </div>
+        @else
+            <p class="py-6 text-center text-sm text-slate-400">Select a leave request to view details.</p>
+        @endif
+
+        <x-slot:footer>
+            <x-ui.button variant="secondary" x-on:click="$dispatch('close-modal', { name: 'employee-leave-detail' })">Close</x-ui.button>
         </x-slot:footer>
     </x-ui.modal>
 </section>

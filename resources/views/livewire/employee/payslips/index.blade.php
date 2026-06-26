@@ -57,13 +57,14 @@
                             <p class="text-xs text-slate-400">{{ $payslip->download_count }} download(s)</p>
                         </x-ui.table.td>
                         <x-ui.table.td>
-                            <button
-                                type="button"
-                                wire:click="downloadPayslip({{ $payslip->id }})"
+                            <a
+                                href="{{ route('employee.payslips.print', $payslip) }}"
+                                target="_blank"
+                                rel="noopener"
                                 class="text-sm font-medium text-blue-700 hover:underline"
                             >
-                                Download
-                            </button>
+                                Download / Print
+                            </a>
                         </x-ui.table.td>
                     </tr>
                 @endforeach

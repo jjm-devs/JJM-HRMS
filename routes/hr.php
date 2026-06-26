@@ -5,6 +5,9 @@ use App\Http\Middleware\EnsurePasswordIsChanged;
 use App\Models\Employee;
 use App\Models\PayrollBatch;
 use App\Models\PayrollItem;
+use App\Models\Payslip;
+use App\Services\Payroll\PayslipViewService;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware([EnsureHrUser::class, EnsurePasswordIsChanged::class])->group(function () {
@@ -57,6 +60,21 @@ Route::middleware([EnsureHrUser::class, EnsurePasswordIsChanged::class])->group(
         'title' => $batch->batch_number,
     ]))->name('hr.payroll.batch.detail');
 
+    Route::get('/payroll/payslip/{payslip}/print', function (Payslip $payslip) {
+        abort_unless(Auth::user()?->canAccessPayrollWorkflow() || Auth::user()?->is_hr, 403);
+        abort_unless($payslip->status === 'issued', 404);
+
+        $payslip->loadMissing('document');
+        $payslip->document?->accessLogs()->create([
+            'user_id' => Auth::id(),
+            'action' => 'viewed',
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+        ]);
+
+        return app(PayslipViewService::class)->inlinePrintResponse($payslip);
+    })->name('hr.payroll.payslip.print');
+
     Route::get('/payroll/batch/{batch}/employee/{item}/leave-review', fn (
         PayrollBatch $batch,
         PayrollItem $item,
@@ -90,4 +108,13 @@ Route::middleware([EnsureHrUser::class, EnsurePasswordIsChanged::class])->group(
         'title' => 'Reports',
     ]))->name('hr.reports.index');
 
+    Route::get('/policy', fn () => view('app.page', [
+        'livewireComponent' => 'hr.policy.index',
+        'title' => 'Policy',
+    ]))->name('hr.policy.index');
+
+    Route::get('/signatures', fn () => view('app.page', [
+        'livewireComponent' => 'hr.signatures.index',
+        'title' => 'Manage Signature',
+    ]))->name('hr.signatures.index');
 });

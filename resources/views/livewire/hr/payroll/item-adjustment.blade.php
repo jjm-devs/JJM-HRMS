@@ -29,7 +29,7 @@
         <x-ui.stat-card label="Gross Salary"
             :value="'₹' . number_format($item->gross_salary, 2)" />
         <x-ui.stat-card label="Total Deductions"
-            :value="'₹' . number_format($item->total_deductions, 2)"
+            :value="'₹' . number_format(max(0, $item->total_deductions + $adjustments->where('type', 'deduction')->sum('amount') - $adjustments->where('type', 'addition')->sum('amount')), 2)"
             variant="danger" />
         <x-ui.stat-card
             label="Adj. Net Effect"

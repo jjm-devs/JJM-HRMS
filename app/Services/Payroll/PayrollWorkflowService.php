@@ -77,6 +77,30 @@ class PayrollWorkflowService
         return $this->canHrEditBeforeSubmission($batch, $user);
     }
 
+    public function canMarkDisbursed(PayrollBatch $batch, ?User $user = null): bool
+    {
+        $user ??= Auth::user();
+
+        return $batch->isLocked()
+            && $batch->status !== 'disbursed'
+            && $user !== null
+            && app(HrScopeService::class)->isHeadOfficeHr($user);
+    }
+
+    public function markAsDisbursed(PayrollBatch $batch): PayrollBatch
+    {
+        abort_unless($batch->isLocked() && $batch->status !== 'disbursed', 422);
+
+        $batch->update([
+            'status'       => 'disbursed',
+            'disbursed_at' => now(),
+        ]);
+
+        $batch->items()->update(['status' => 'approved']);
+
+        return $batch->refresh();
+    }
+
     public function canGenerateFinalPayrollDocuments(PayrollBatch $batch, ?User $user = null): bool
     {
         $user ??= Auth::user();

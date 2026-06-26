@@ -13,8 +13,8 @@
 
     <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <x-ui.stat-card
-            label="Casual Leave Left"
-            :value="number_format($casualLeave['remaining'], 2)"
+            label="Paid Leave Left"
+            :value="number_format($paidLeave['remaining'], 2)"
             hint="2 days per month"
             variant="success"
         />
@@ -90,16 +90,16 @@
             <x-ui.card title="Leave Bank">
                 <div class="space-y-3">
                     <div class="flex items-center justify-between border-b border-slate-100 pb-2">
-                        <span class="text-sm text-slate-500">Monthly casual allowance</span>
-                        <span class="text-sm font-semibold text-slate-900">{{ number_format($casualLeave['allowance'], 2) }}</span>
+                        <span class="text-sm text-slate-500">Monthly paid leave allowance</span>
+                        <span class="text-sm font-semibold text-slate-900">{{ number_format($paidLeave['allowance'], 2) }}</span>
                     </div>
                     <div class="flex items-center justify-between border-b border-slate-100 pb-2">
                         <span class="text-sm text-slate-500">Used or pending</span>
-                        <span class="text-sm font-semibold text-slate-900">{{ number_format($casualLeave['used'], 2) }}</span>
+                        <span class="text-sm font-semibold text-slate-900">{{ number_format($paidLeave['used'], 2) }}</span>
                     </div>
                     <div class="flex items-center justify-between">
                         <span class="text-sm text-slate-500">Available</span>
-                        <span class="text-sm font-semibold text-green-700">{{ number_format($casualLeave['remaining'], 2) }}</span>
+                        <span class="text-sm font-semibold text-green-700">{{ number_format($paidLeave['remaining'], 2) }}</span>
                     </div>
                 </div>
             </x-ui.card>

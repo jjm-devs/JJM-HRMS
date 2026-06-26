@@ -2,7 +2,7 @@
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h1 class="text-xl font-bold text-slate-900">Documents</h1>
-            <p class="text-sm text-slate-500">Employee submissions, generated payroll letters, and uploaded batch attachments.</p>
+            <p class="text-sm text-slate-500">Employee submissions, generated payroll letters, salary statements, and uploaded batch attachments.</p>
         </div>
     </div>
 

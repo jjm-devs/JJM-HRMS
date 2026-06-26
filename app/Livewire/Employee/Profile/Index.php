@@ -340,6 +340,7 @@ class Index extends Component
             'overview' => 'Overview',
             'contacts' => 'Contacts',
             'family' => 'Family',
+            'bank' => 'Bank Details',
             'documents' => 'Documents',
         ];
     }
