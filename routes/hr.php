@@ -2,13 +2,18 @@
 
 use App\Http\Middleware\EnsureHrUser;
 use App\Http\Middleware\EnsurePasswordIsChanged;
+use App\Models\DocumentAccessLog;
 use App\Models\Employee;
+use App\Models\LeaveApplication;
 use App\Models\PayrollBatch;
 use App\Models\PayrollItem;
 use App\Models\Payslip;
+use App\Services\Hr\HrScopeService;
+use App\Services\Leave\LeaveApplicationDocumentService;
 use App\Services\Payroll\PayslipViewService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 
 Route::middleware([EnsureHrUser::class, EnsurePasswordIsChanged::class])->group(function () {
     Route::get('/dashboard', fn () => view('app.page', [
@@ -48,6 +53,35 @@ Route::middleware([EnsureHrUser::class, EnsurePasswordIsChanged::class])->group(
         'livewireParams' => ['activeTab' => 'leave_register'],
         'title' => 'Attendance & Leave',
     ]))->name('hr.leave.index');
+
+    Route::get('/leave/{leave}/application/print', function (LeaveApplication $leave) {
+        abort_unless($leave->source === LeaveApplication::SOURCE_EMPLOYEE_REQUEST, 404);
+
+        $scoped = app(HrScopeService::class)->applyToLeaveQuery(
+            LeaveApplication::query()->whereKey($leave->id)
+        );
+        abort_unless($scoped->exists(), 403);
+
+        $document = app(LeaveApplicationDocumentService::class)->generateApplicationPrint($leave);
+
+        DocumentAccessLog::query()->create([
+            'document_id' => $document->id,
+            'user_id' => Auth::id(),
+            'action' => 'generated',
+            'ip_address' => request()->ip(),
+            'user_agent' => substr((string) request()->userAgent(), 0, 1000),
+        ]);
+
+        abort_unless(Storage::disk($document->disk)->exists($document->file_path), 404);
+
+        $script = '<script>window.addEventListener("load",function(){setTimeout(function(){window.print();},200);});</script>';
+        $html = preg_replace('/<\/body>/i', $script.'</body>', Storage::disk($document->disk)->get($document->file_path), 1);
+
+        return response($html, 200, [
+            'Content-Type' => 'text/html; charset=UTF-8',
+            'Content-Disposition' => 'inline; filename="leave-application-'.$leave->id.'.html"',
+        ]);
+    })->name('hr.leave.application.print');
 
     Route::get('/payroll', fn () => view('app.page', [
         'livewireComponent' => 'hr.payroll.index',

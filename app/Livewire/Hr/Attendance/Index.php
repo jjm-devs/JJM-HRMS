@@ -203,16 +203,6 @@ class Index extends Component
         session()->flash('leave_status', 'Leave request approved.');
     }
 
-    public function printLeaveApplication(int $leaveId)
-    {
-        $leave = $this->leaveRequestForAction($leaveId);
-        $document = app(LeaveApplicationDocumentService::class)->generateApplicationPrint($leave);
-
-        $this->logDocumentAccess($document, 'generated');
-
-        return Storage::disk($document->disk)->download($document->file_path, $document->file_name);
-    }
-
     public function downloadLeaveRequestDocument(int $documentId)
     {
         $document = $this->visibleLeaveDocument($documentId);

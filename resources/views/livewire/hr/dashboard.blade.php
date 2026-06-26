@@ -4,61 +4,85 @@
 
     {{-- Stat cards --}}
     <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <x-ui.stat-card label="Total Employees" value="248" hint="Across all divisions" />
-        <x-ui.stat-card label="On Leave Today" value="12" hint="4 pending approval" />
-        <x-ui.stat-card label="Attendance Today" value="91%" hint="226 of 248 present" />
-        <x-ui.stat-card label="Open Grievances" value="3" hint="1 escalated" />
+        <x-ui.stat-card label="Total Employees" :value="number_format($stats['total_employees'])" hint="Active, in your scope" />
+        <x-ui.stat-card label="On Leave Today" :value="number_format($stats['on_leave_today'])" hint="Approved leave covering today" />
+        <x-ui.stat-card
+            label="Attendance Today"
+            :value="$stats['attendance_pct'] . '%'"
+            hint="{{ number_format($stats['present_today']) }} of {{ number_format($stats['total_employees']) }} present"
+        />
+        <x-ui.stat-card
+            label="Pending Approvals"
+            :value="number_format($stats['pending_approvals'])"
+            hint="Leave requests awaiting action"
+            variant="{{ $stats['pending_approvals'] > 0 ? 'warning' : 'default' }}"
+        />
     </div>
 
     {{-- Recent leave requests --}}
     <div class="mt-6">
-        <x-ui.card title="Recent Leave Requests" description="Latest leave applications pending your action">
+        <x-ui.card title="Recent Leave Requests" description="Latest leave applications in your scope">
             <x-ui.table :headers="['Employee', 'Leave Type', 'Duration', 'Applied On', 'Status', '']" :padding="false">
-                <tr>
-                    <x-ui.table.td>
-                        <span class="font-medium text-slate-900">Rahul Sharma</span>
-                        <p class="text-xs text-slate-400">EMP-001</p>
-                    </x-ui.table.td>
-                    <x-ui.table.td>Paid Leave</x-ui.table.td>
-                    <x-ui.table.td>Jun 1 – Jun 3 <span class="text-slate-400">(3 days)</span></x-ui.table.td>
-                    <x-ui.table.td muted>May 26, 2026</x-ui.table.td>
-                    <x-ui.table.td><x-ui.badge variant="warning">Pending</x-ui.badge></x-ui.table.td>
-                    <x-ui.table.td>
-                        <x-ui.button variant="ghost" size="sm">Review</x-ui.button>
-                    </x-ui.table.td>
-                </tr>
-                <tr>
-                    <x-ui.table.td>
-                        <span class="font-medium text-slate-900">Priya Nath</span>
-                        <p class="text-xs text-slate-400">EMP-002</p>
-                    </x-ui.table.td>
-                    <x-ui.table.td>Medical Leave</x-ui.table.td>
-                    <x-ui.table.td>May 28 – May 30 <span class="text-slate-400">(3 days)</span></x-ui.table.td>
-                    <x-ui.table.td muted>May 25, 2026</x-ui.table.td>
-                    <x-ui.table.td><x-ui.badge variant="success">Approved</x-ui.badge></x-ui.table.td>
-                    <x-ui.table.td>
-                        <x-ui.button variant="ghost" size="sm">View</x-ui.button>
-                    </x-ui.table.td>
-                </tr>
+                @forelse ($recentLeaves as $leave)
+                    @php
+                        $badge = match ($leave->status) {
+                            \App\Models\LeaveApplication::STATUS_APPROVED => 'success',
+                            \App\Models\LeaveApplication::STATUS_SUBMITTED,
+                            \App\Models\LeaveApplication::STATUS_UNDER_REVIEW,
+                            \App\Models\LeaveApplication::STATUS_CANCELLATION_REQUESTED => 'warning',
+                            \App\Models\LeaveApplication::STATUS_REJECTED,
+                            \App\Models\LeaveApplication::STATUS_CANCELLED,
+                            \App\Models\LeaveApplication::STATUS_WITHDRAWN => 'danger',
+                            default => 'default',
+                        };
+                        $days = (int) $leave->total_days;
+                    @endphp
+                    <tr>
+                        <x-ui.table.td>
+                            <span class="font-medium text-slate-900">{{ $leave->employee?->full_name ?? '—' }}</span>
+                            <p class="text-xs text-slate-400">{{ $leave->employee?->employee_code }}</p>
+                        </x-ui.table.td>
+                        <x-ui.table.td>{{ $leave->leaveType?->name ?? '—' }}</x-ui.table.td>
+                        <x-ui.table.td>
+                            {{ $leave->start_date?->format('d M') }} – {{ $leave->end_date?->format('d M') }}
+                            <span class="text-slate-400">({{ $days }} day{{ $days === 1 ? '' : 's' }})</span>
+                        </x-ui.table.td>
+                        <x-ui.table.td muted>{{ $leave->created_at?->format('d M Y') }}</x-ui.table.td>
+                        <x-ui.table.td>
+                            <x-ui.badge variant="{{ $badge }}">{{ \Illuminate\Support\Str::headline($leave->status) }}</x-ui.badge>
+                        </x-ui.table.td>
+                        <x-ui.table.td>
+                            <a href="{{ route('hr.leave.index') }}" class="text-sm font-medium text-blue-700 hover:underline">View</a>
+                        </x-ui.table.td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="6" class="px-4 py-10 text-center text-sm text-slate-400">No leave requests yet.</td>
+                    </tr>
+                @endforelse
             </x-ui.table>
         </x-ui.card>
     </div>
 
     {{-- Bottom two cols --}}
     <div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {{-- Upcoming events --}}
-        <x-ui.card title="Upcoming" description="Holidays and events this month">
+        {{-- Upcoming holidays --}}
+        <x-ui.card title="Upcoming" description="Next holidays on the calendar">
             <div class="space-y-3">
-                @foreach ([['May 29', 'Eid Al-Adha', 'success', 'Holiday'], ['Jun 15', 'Payroll Processing', 'info', 'Reminder'], ['Jun 21', 'Mid-Year Review', 'info', 'Reminder']] as [$date, $label, $variant, $badgeLabel])
+                @forelse ($upcomingHolidays as $holiday)
                     <div class="flex items-center gap-3">
                         <div class="flex h-9 w-9 shrink-0 flex-col items-center justify-center border border-slate-100 bg-slate-50 text-center">
-                            <span class="text-xs font-semibold text-slate-700">{{ explode(' ', $date)[1] }}</span>
-                            <span class="text-xs text-slate-400">{{ explode(' ', $date)[0] }}</span>
+                            <span class="text-xs font-semibold text-slate-700">{{ $holiday->holiday_date->format('d') }}</span>
+                            <span class="text-xs text-slate-400">{{ $holiday->holiday_date->format('M') }}</span>
                         </div>
-                        <span class="text-sm text-slate-700">{{ $label }}</span>
-                        <x-ui.badge variant="{{ $variant }}" class="ml-auto">{{ $badgeLabel }}</x-ui.badge>
+                        <span class="text-sm text-slate-700">{{ $holiday->name }}</span>
+                        <x-ui.badge variant="{{ $holiday->type === 'restricted' ? 'info' : 'success' }}" class="ml-auto">
+                            {{ \Illuminate\Support\Str::headline($holiday->type ?? 'Holiday') }}
+                        </x-ui.badge>
                     </div>
-                @endforeach
+                @empty
+                    <p class="py-6 text-center text-sm text-slate-400">No upcoming holidays.</p>
+                @endforelse
             </div>
         </x-ui.card>
 
