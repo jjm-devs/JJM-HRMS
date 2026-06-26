@@ -30,7 +30,7 @@ $sizes = [
 >
     {{-- Backdrop --}}
     <div
-        class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+        class="absolute inset-0 bg-black/50 backdrop-blur-sm"
         x-on:click="open = false"
     ></div>
 
