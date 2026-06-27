@@ -18,6 +18,13 @@ Filament should only be used for the Super Master configuration panel.
 
 Do not use Filament for HR or employee working screens.
 
+Developer flow reference:
+
+```text
+docs/PAYROLL_LEAVE_FLOW.md
+  Explains Payroll and Leave stages, actors, roles, status changes, and code owners.
+```
+
 ---
 
 ## 2. Main URLs
