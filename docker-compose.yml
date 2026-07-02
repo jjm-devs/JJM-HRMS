@@ -3,11 +3,8 @@ services:
     build:
       context: .
       dockerfile: docker/php/Dockerfile
+    network_mode: host
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:${APP_HTTP_PORT:-8080}:80"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     env_file:
       - .env
     volumes:
@@ -17,10 +14,9 @@ services:
     build:
       context: .
       dockerfile: docker/php/Dockerfile
+    network_mode: host
     restart: unless-stopped
     command: php artisan queue:work --tries=3 --timeout=90 --sleep=3
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     env_file:
       - .env
     volumes:
@@ -30,10 +26,9 @@ services:
     build:
       context: .
       dockerfile: docker/php/Dockerfile
+    network_mode: host
     restart: unless-stopped
     command: php artisan schedule:work --verbose --no-interaction
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     env_file:
       - .env
     volumes:
