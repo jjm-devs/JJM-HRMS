@@ -4,6 +4,7 @@ namespace App\Services\Hr;
 
 use App\Models\HrScopeAssignment;
 use App\Models\OrgUnit;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -45,6 +46,21 @@ class HrScopeService
             ->where('can_view', true)
             ->where('is_ho', true)
             ->exists();
+    }
+
+    /**
+     * Who may see/use the payroll module: Head Office HR, or anyone holding a
+     * payroll approval workflow role. Plain HR (no HO, no workflow role) cannot.
+     */
+    public function canAccessPayrollModule(?User $user = null): bool
+    {
+        $user ??= Auth::user();
+
+        if (! $user) {
+            return false;
+        }
+
+        return $this->isHeadOfficeHr($user) || $user->hasAnyRole(Role::PAYROLL_APPROVER_ROLE_CODES);
     }
 
     public function scopedOrgUnitIds(): ?Collection

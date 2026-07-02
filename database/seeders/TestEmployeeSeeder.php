@@ -2,12 +2,18 @@
 
 namespace Database\Seeders;
 
+use App\Models\Cadre;
+use App\Models\DepartmentStream;
+use App\Models\Designation;
 use App\Models\Employee;
+use App\Models\EmployeeSalaryComponent;
+use App\Models\EmploymentType;
+use App\Models\OrgUnit;
+use App\Models\SalaryComponent;
+use App\Models\SalaryStructure;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
-use App\Models\EmployeeSalaryComponent;
-use App\Models\SalaryStructure;
 
 class TestEmployeeSeeder extends Seeder
 {
@@ -35,50 +41,87 @@ class TestEmployeeSeeder extends Seeder
             ['employee13@jjmbrain.local', 'Jitu Phukan',     'EMP-2026-00015'],
             ['employee14@jjmbrain.local', 'Papori Borah',    'EMP-2026-00016'],
             ['employee15@jjmbrain.local', 'Kabita Nath',     'EMP-2026-00017'],
+            ['employee16@jjmbrain.local', 'Nabanita Deka',   'EMP-2026-00018'],
         ];
 
-        foreach ($employees as [$email, $name, $code]) {
-            $user = User::create([
-                'email'                => $email,
-                'name'                 => $name,
-                'password'             => 'password',
-                'is_admin'             => false,
-                'is_hr'                => false,
-                'status'               => 'active',
-                'must_change_password' => false,
-                'email_verified_at'    => now(),
+        $chiefEngineerOffice = OrgUnit::query()
+            ->where('name', 'Office Of the Chief Engineer(Water)')
+            ->firstOrFail();
+        $missionDirectorOffice = OrgUnit::query()
+            ->where('name', 'Office of the Mission Director')
+            ->firstOrFail();
+
+        $phedStream = DepartmentStream::query()
+            ->where('code', 'PHED')
+            ->firstOrFail();
+        $missionStreams = DepartmentStream::query()
+            ->where('code', '!=', 'PHED')
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get();
+
+        $employmentTypeId = EmploymentType::query()->where('code', 'REGULAR')->value('id');
+        $cadreId = Cadre::query()->where('code', 'ENGINEERING')->value('id') ?? Cadre::query()->value('id');
+        $designationId = Designation::query()->where('code', 'JE')->value('id') ?? Designation::query()->value('id');
+        $basicSalaryComponentId = SalaryComponent::query()->where('code', 'BASIC')->value('id');
+
+        foreach ($employees as $index => [$email, $name, $code]) {
+            $user = User::query()->updateOrCreate(
+                ['email' => $email],
+                [
+                    'email' => $email,
+                    'name' => $name,
+                    'password' => 'password',
+                    'is_admin' => false,
+                    'is_hr' => false,
+                    'status' => 'active',
+                    'must_change_password' => false,
+                    'email_verified_at' => now(),
+                ],
+            );
+
+            $isChiefEngineerEmployee = $index < count($employees) / 2;
+            $orgUnit = $isChiefEngineerEmployee ? $chiefEngineerOffice : $missionDirectorOffice;
+            $stream = $isChiefEngineerEmployee
+                ? $phedStream
+                : $missionStreams->values()->get($index % max(1, $missionStreams->count()));
+
+            $employee = Employee::query()->updateOrCreate(
+                ['employee_code' => $code],
+                [
+                    'user_id' => $user->id,
+                    'full_name' => $name,
+                    'org_unit_id' => $orgUnit->id,
+                    'department_stream_id' => $stream?->id,
+                    'employment_type_id' => $employmentTypeId,
+                    'cadre_id' => $cadreId,
+                    'designation_id' => $designationId,
+                    'joining_date' => now()->toDateString(),
+                    'service_status' => 'active',
+                ],
+            );
+
+            $salaryStructure = SalaryStructure::query()->updateOrCreate([
+                'employee_id' => $employee->id,
+                'status' => 'active',
+            ], [
+                'pay_level_id' => 1,
+                'basic_salary' => 50000.00,
+                'grade_pay' => 0.00,
+                'effective_from' => now()->toDateString(),
+                'effective_to' => null,
             ]);
 
-            $employee=Employee::create([
-                'user_id'              => $user->id,
-                'employee_code'        => $code,
-                'full_name'            => $name,
-                'org_unit_id'          => 2,
-                'department_stream_id' => 1,
-                'employment_type_id'   => 1,
-                'cadre_id'             => 1,
-                'designation_id'       => 1,
-                'joining_date'         => now()->toDateString(),
-                'service_status'       => 'active',
-            ]);
-            $salaryStructure = SalaryStructure::create([
-                'employee_id'   => $employee->id,
-                'pay_level_id'  => 1,
-                'basic_salary'  => 50000.00,
-                'grade_pay'     => 0.00,
-                'effective_from' => now()->toDateString(),
-                'effective_to'   => null,
-                'status'        => 'active',
-            ]);
-            EmployeeSalaryComponent::create([
+            EmployeeSalaryComponent::query()->updateOrCreate([
                 'salary_structure_id' => $salaryStructure->id,
-                'salary_component_id' => 6, // Basic Salary
-                'amount'              => 50000.00,
-                'percentage_rate'     => null,
-                'calculation_type'    => 'fixed',
-                'calculation_base'    => null,
-                'formula'            => null,
-                'status'             => 'active',
+                'salary_component_id' => $basicSalaryComponentId,
+            ], [
+                'amount' => 50000.00,
+                'percentage_rate' => null,
+                'calculation_type' => 'fixed',
+                'calculation_base' => null,
+                'formula' => null,
+                'status' => 'active',
             ]);
         }
     }

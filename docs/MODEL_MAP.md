@@ -80,6 +80,7 @@ graph TD
     User --> HrScopeAssignment
     OrgUnit --> HrScopeAssignment
     DepartmentStream --> HrScopeAssignment
+    OrgUnit --> DepartmentStream
     EmploymentType --> HrScopeAssignment
     User --> EmployeeManagerAssignment
     Employee --> EmployeeManagerAssignment
@@ -93,6 +94,7 @@ graph TD
 | User | Login identity for Super Admin, HR, and Employee users |
 | OrgUnit | Government hierarchy: department, head office, zone, circle, division, sub-division, office |
 | DepartmentStream | PHED/JJM classification |
+| OrgUnit ↔ DepartmentStream | Defines which streams are available under each organization unit |
 | EmploymentType | Regular/Contractual classification |
 | HrScopeAssignment | Defines what an HR user can manage |
 | EmployeeManagerAssignment | Special exception assignment of an employee to a user |
@@ -585,7 +587,7 @@ graph TD
 | Candidate | applications, documents |
 | CandidateApplication | candidate, vacancy, stageResults, interviewSchedules, offerLetter, joiningRequest |
 | CompensatoryOffCredit | employee |
-| DepartmentStream | hrScopeAssignments, employees |
+| DepartmentStream | orgUnits, hrScopeAssignments, employees |
 | Designation | cadre, departmentStream, employees |
 | DeviceSession | user |
 | Document | documentable, documentType, uploadedBy, verifiedBy, accessLogs |
@@ -626,7 +628,7 @@ graph TD
 | NotificationPreference | user |
 | NotificationTemplate | logs |
 | OfferLetter | candidateApplication, document |
-| OrgUnit | parent, children, hrScopeAssignments, employees |
+| OrgUnit | parent, children, departmentStreams, hrScopeAssignments, employees |
 | OtpToken | user |
 | PayLevel | payMatrix, salaryStructures |
 | PayMatrix | payLevels |

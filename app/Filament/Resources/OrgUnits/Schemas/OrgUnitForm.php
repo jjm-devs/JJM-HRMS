@@ -25,6 +25,13 @@ class OrgUnitForm
                     ->options(OrgUnit::TYPES)
                     ->required()
                     ->searchable(),
+                Select::make('departmentStreams')
+                    ->relationship('departmentStreams', 'name', fn ($query) => $query->where('status', 'active')->orderBy('name'))
+                    ->label('Department Streams')
+                    ->multiple()
+                    ->preload()
+                    ->searchable()
+                    ->helperText('Select the streams that are available under this organization unit.'),
                 Select::make('parent_id')
                     ->relationship('parent', 'name')
                     ->label('Parent Unit')

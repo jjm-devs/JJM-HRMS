@@ -101,9 +101,11 @@ class LeaveRequestTest extends TestCase
             ->assertSee('prescription.jpg')
             ->assertSee('medical-note.pdf');
 
-        Livewire::test(HrAttendanceIndex::class)
-            ->call('printLeaveApplication', $leave->id)
-            ->assertFileDownloaded('leave-application-'.$leave->id.'.pdf');
+        // Printable opens in-browser (HTML → print / Save as PDF).
+        $this->get(route('hr.leave.application.print', $leave->id))
+            ->assertOk()
+            ->assertSee('Leave Application', false)
+            ->assertSee('Leave Request Employee', false);
 
         $printDocument = Document::query()
             ->where('documentable_type', $leave->getMorphClass())
@@ -112,7 +114,8 @@ class LeaveRequestTest extends TestCase
             ->firstOrFail();
 
         Storage::disk($printDocument->disk)->assertExists($printDocument->file_path);
-        $this->assertStringStartsWith('%PDF-', Storage::disk($printDocument->disk)->get($printDocument->file_path));
+        $this->assertSame('text/html', $printDocument->mime_type);
+        $this->assertStringContainsString('Leave Application', Storage::disk($printDocument->disk)->get($printDocument->file_path));
 
         Livewire::test(HrAttendanceIndex::class)
             ->call('openApproveLeaveRequestModal', $leave->id)

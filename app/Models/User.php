@@ -28,6 +28,7 @@ class User extends Authenticatable implements FilamentUser
         'must_change_password',
         'signature_path',
         'signature_disk',
+        'payroll_generation_defaults',
     ];
 
     protected $hidden = [
@@ -43,6 +44,7 @@ class User extends Authenticatable implements FilamentUser
             'is_admin' => 'boolean',
             'is_hr' => 'boolean',
             'must_change_password' => 'boolean',
+            'payroll_generation_defaults' => 'array',
         ];
     }
 

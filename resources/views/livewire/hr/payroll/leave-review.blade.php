@@ -12,6 +12,14 @@
             <p class="text-sm text-slate-500">
                 {{ $item->employee?->full_name }} · {{ $item->employee?->employee_code }}
             </p>
+            <div class="mt-2 flex flex-wrap items-center gap-2">
+                @if ($item->employee?->orgUnit)
+                    <x-ui.badge variant="default">{{ $item->employee->orgUnit->name }}</x-ui.badge>
+                @endif
+                @if ($item->employee?->departmentStream)
+                    <x-ui.badge variant="info">{{ $item->employee->departmentStream->name }}</x-ui.badge>
+                @endif
+            </div>
         </div>
     </div>
 

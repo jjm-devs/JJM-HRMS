@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Models\DepartmentStream;
+use App\Models\OrgUnit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -28,9 +30,57 @@ class MasterConfigurationResourceTest extends TestCase
         }
     }
 
+    public function test_org_unit_can_be_assigned_department_streams(): void
+    {
+        $orgUnit = OrgUnit::query()->create([
+            'name' => 'Head Office',
+            'code' => 'HO',
+            'type' => 'head_office',
+            'status' => 'active',
+        ]);
+
+        $phed = DepartmentStream::query()->create([
+            'name' => 'PHED',
+            'code' => 'PHED',
+            'status' => 'active',
+        ]);
+
+        $jjm = DepartmentStream::query()->create([
+            'name' => 'JJM HQ',
+            'code' => 'JJMHQ',
+            'status' => 'active',
+        ]);
+
+        $orgUnit->departmentStreams()->sync([$phed->id, $jjm->id]);
+
+        $this->assertDatabaseHas('department_stream_org_unit', [
+            'org_unit_id' => $orgUnit->id,
+            'department_stream_id' => $phed->id,
+        ]);
+
+        $this->assertDatabaseHas('department_stream_org_unit', [
+            'org_unit_id' => $orgUnit->id,
+            'department_stream_id' => $jjm->id,
+        ]);
+
+        $this->assertSame(
+            ['JJM HQ', 'PHED'],
+            $orgUnit->fresh()->departmentStreams()->orderBy('name')->pluck('name')->all(),
+        );
+
+        $this->assertSame(
+            ['Head Office'],
+            $phed->fresh()->orgUnits()->pluck('name')->all(),
+        );
+    }
+
     private function masterResourcePaths(): array
     {
         return [
+            '/admin/org-units',
+            '/admin/org-units/create',
+            '/admin/hr-scope-assignments',
+            '/admin/hr-scope-assignments/create',
             '/admin/pay-matrices',
             '/admin/pay-matrices/create',
             '/admin/pay-levels',

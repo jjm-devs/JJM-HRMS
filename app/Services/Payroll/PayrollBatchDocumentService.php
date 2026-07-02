@@ -89,7 +89,7 @@ class PayrollBatchDocumentService
     {
         $items = $batch->items()
             ->with([
-                'employee:id,employee_code,full_name,designation_id,org_unit_id,bank_account_number,bank_ifsc_code,bank_name,bank_branch',
+                'employee:id,employee_code,full_name,designation_id,org_unit_id,department_stream_id,bank_account_number,bank_ifsc_code,bank_name,bank_branch',
                 'employee.designation:id,name',
                 'employee.orgUnit:id,name',
                 'components',
@@ -104,6 +104,7 @@ class PayrollBatchDocumentService
             'Employee Name',
             'Designation',
             'Office / Unit',
+            'Stream',
             'Bank Account Number',
             'IFSC Code',
             'Bank Name',
@@ -149,6 +150,7 @@ class PayrollBatchDocumentService
                 $item->employee?->full_name,
                 $item->employee?->designation?->name,
                 $item->employee?->orgUnit?->name,
+                $item->employee?->departmentStream?->name,
                 $item->employee?->bank_account_number,
                 $item->employee?->bank_ifsc_code,
                 $item->employee?->bank_name,

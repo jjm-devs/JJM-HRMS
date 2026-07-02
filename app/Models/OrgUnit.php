@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class OrgUnit extends Model
@@ -54,6 +55,11 @@ class OrgUnit extends Model
     public function hrScopeAssignments(): HasMany
     {
         return $this->hasMany(HrScopeAssignment::class);
+    }
+
+    public function departmentStreams(): BelongsToMany
+    {
+        return $this->belongsToMany(DepartmentStream::class)->withTimestamps();
     }
 
     public function employees(): HasMany

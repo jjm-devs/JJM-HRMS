@@ -422,7 +422,7 @@
                                     <x-ui.button wire:click="openApproveLeaveRequestModal({{ $request->id }})" variant="ghost" size="sm" class="text-green-700 hover:text-green-800">Approve</x-ui.button>
                                     <x-ui.button wire:click="rejectLeaveRequest({{ $request->id }})" variant="ghost" size="sm" class="text-red-600 hover:text-red-700">Reject</x-ui.button>
                                 @endif
-                                <x-ui.button wire:click="printLeaveApplication({{ $request->id }})" variant="ghost" size="sm">Print</x-ui.button>
+                                <x-ui.button :href="route('hr.leave.application.print', $request->id)" target="_blank" rel="noopener" variant="ghost" size="sm">Print</x-ui.button>
                                 <x-ui.button wire:click="openLeaveDetail({{ $request->id }})" variant="ghost" size="sm" class="text-blue-700 hover:text-blue-800">View Details</x-ui.button>
                             </div>
                         </x-ui.table.td>

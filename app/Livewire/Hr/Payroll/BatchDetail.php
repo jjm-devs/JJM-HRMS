@@ -53,6 +53,13 @@ class BatchDetail extends Component
 
     public string $sanctionCopyTo = '';
 
+    public function mount(PayrollBatch $batch): void
+    {
+        $this->batch = $batch;
+
+        abort_unless(app(\App\Services\Hr\HrScopeService::class)->canAccessPayrollModule(), 403);
+    }
+
     // ── actions ───────────────────────────────────────────────────────────────
 
     public function openSubmitModal(): void
@@ -330,8 +337,9 @@ class BatchDetail extends Component
         $items = PayrollItem::query()
             ->where('payroll_batch_id', $this->batch->id)
             ->with([
-                'employee:id,full_name,employee_code,org_unit_id',
+                'employee:id,full_name,employee_code,org_unit_id,department_stream_id',
                 'employee.orgUnit:id,name',
+                'employee.departmentStream:id,name',
                 'adjustments',
                 'payslip:id,payroll_item_id,status,generated_at',
             ])
@@ -389,6 +397,7 @@ class BatchDetail extends Component
                 ->with('uploadedBy:id,name')
                 ->latest()
                 ->get(),
+            'batchCoverage' => $this->batchCoverage(),
             'finalApproverLabel' => Role::labelFor('md'),
             'summary' => [
                 'employees' => $this->batch->items()->count(),
@@ -402,5 +411,35 @@ class BatchDetail extends Component
                     ->count(),
             ],
         ]);
+    }
+
+    private function batchCoverage(): array
+    {
+        $items = $this->batch->items()
+            ->with([
+                'employee:id,org_unit_id,department_stream_id',
+                'employee.orgUnit:id,name',
+                'employee.departmentStream:id,name',
+            ])
+            ->get();
+
+        return [
+            'orgUnits' => $items
+                ->groupBy(fn (PayrollItem $item): string => (string) ($item->employee?->org_unit_id ?? 'unassigned'))
+                ->map(fn ($group): array => [
+                    'name' => $group->first()->employee?->orgUnit?->name ?? 'Unassigned Org Unit',
+                    'count' => $group->count(),
+                ])
+                ->sortBy('name')
+                ->values(),
+            'streams' => $items
+                ->groupBy(fn (PayrollItem $item): string => (string) ($item->employee?->department_stream_id ?? 'unassigned'))
+                ->map(fn ($group): array => [
+                    'name' => $group->first()->employee?->departmentStream?->name ?? 'Unassigned Stream',
+                    'count' => $group->count(),
+                ])
+                ->sortBy('name')
+                ->values(),
+        ];
     }
 }

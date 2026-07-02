@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\DepartmentStream;
 use App\Models\OrgUnit;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
@@ -23,13 +24,25 @@ class OrgUnitSeeder extends Seeder
             ['code' => 'CE-PHED-ASSAM'],
             [
                 'parent_id' => $department->id,
-                'name' => 'Chief Engineer Office PHED Assam',
+                'name' => 'Office Of the Chief Engineer(Water)',
                 'type' => 'head_office',
                 'status' => 'active',
             ],
         );
 
         $this->seedZones($headOffice);
+
+        $missionDirector = OrgUnit::query()->updateOrCreate(
+            ['code' => 'MISSION-DIRECTOR-WATER'],
+            [
+                'parent_id' => $headOffice->id,
+                'name' => 'Office of the Mission Director',
+                'type' => 'office',
+                'status' => 'active',
+            ],
+        );
+
+        $this->mapDepartmentStreams($headOffice, $missionDirector);
     }
 
     private function seedZones(OrgUnit $headOffice): void
@@ -327,6 +340,41 @@ class OrgUnitSeeder extends Seeder
                 'status' => 'active',
             ],
         );
+    }
+
+    private function mapDepartmentStreams(OrgUnit $phedOffice, OrgUnit $missionDirector): void
+    {
+        $phedStream = DepartmentStream::query()
+            ->where('code', 'PHED')
+            ->where('status', 'active')
+            ->first();
+
+        $nonPhedStreamIds = DepartmentStream::query()
+            ->where('code', '!=', 'PHED')
+            ->where('status', 'active')
+            ->pluck('id')
+            ->all();
+
+        $phedStreamIds = $phedStream ? [$phedStream->id] : [];
+
+        OrgUnit::query()
+            ->select(['id', 'name'])
+            ->cursor()
+            ->each(function (OrgUnit $orgUnit) use ($phedOffice, $missionDirector, $phedStreamIds, $nonPhedStreamIds): void {
+                if ($orgUnit->is($phedOffice)) {
+                    $orgUnit->departmentStreams()->sync($phedStreamIds);
+
+                    return;
+                }
+
+                if ($orgUnit->is($missionDirector)) {
+                    $orgUnit->departmentStreams()->sync($nonPhedStreamIds);
+
+                    return;
+                }
+
+                $orgUnit->departmentStreams()->sync($nonPhedStreamIds);
+            });
     }
 
     private function makeCode(string $value): string

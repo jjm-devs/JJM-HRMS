@@ -30,6 +30,11 @@ class OrgUnitsTable
                     ->label('Parent')
                     ->searchable()
                     ->toggleable(),
+                TextColumn::make('departmentStreams.name')
+                    ->label('Streams')
+                    ->badge()
+                    ->placeholder('No streams')
+                    ->toggleable(),
                 TextColumn::make('status')
                     ->badge()
                     ->sortable(),

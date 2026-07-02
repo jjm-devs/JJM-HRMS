@@ -1,4 +1,8 @@
 @import 'tailwindcss';
+
+/* Enable class-based dark mode: `dark:` utilities apply under a .dark ancestor. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @source "../../resources/views";
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
@@ -8,4 +12,40 @@
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+}
+
+/*
+ | Dark theme
+ |
+ | The app is built entirely with neutral utilities (bg-white, bg-slate-50,
+ | text-slate-*, border-slate-*). Tailwind v4 compiles those to var(--color-*),
+ | so redefining the neutral palette under .dark flips the whole UI at once —
+ | no per-page edits. Accent colours (green/blue/amber/red/purple) are left
+ | as-is so badges, buttons and status pills keep their meaning.
+ |
+ | Two spots need a fixed colour regardless of theme and are handled in their
+ | components: the modal backdrop (bg-black/50) and coloured-button text
+ | (text-[#fff]).
+*/
+:root.dark {
+    /* surfaces */
+    --color-white: #1e293b;     /* cards, inputs, panels */
+    --color-slate-50: #0f172a;  /* page background, table headers, row hover */
+    --color-slate-100: #2a3a4f; /* subtle surfaces, secondary buttons */
+    --color-slate-200: #334155; /* borders */
+    --color-slate-300: #475569; /* stronger borders / input outlines */
+
+    /* foreground (light end of the ramp) */
+    --color-slate-400: #94a3b8; /* muted text, icons, hints */
+    --color-slate-500: #a8b3c2; /* muted text */
+    --color-slate-600: #cbd5e1;
+    --color-slate-700: #e2e8f0;
+    --color-slate-800: #e8edf3;
+    --color-slate-900: #f1f5f9; /* headings */
+    --color-slate-950: #f8fafc; /* body text */
+}
+
+/* Smooth the switch without animating layout. */
+body {
+    transition: background-color 0.15s ease, color 0.15s ease;
 }

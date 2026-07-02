@@ -28,9 +28,16 @@ class ItemAdjustment extends Component
 
     public function mount(): void
     {
+        abort_unless(app(\App\Services\Hr\HrScopeService::class)->canAccessPayrollModule(), 403);
+
         abort_unless($this->item->payroll_batch_id === $this->batch->id, 404);
 
         $this->overridePct = (string) $this->item->disbursement_pct;
+
+        $this->item->loadMissing([
+            'employee.orgUnit:id,name',
+            'employee.departmentStream:id,name',
+        ]);
     }
 
     // ── adjustment rules ──────────────────────────────────────────────────────
