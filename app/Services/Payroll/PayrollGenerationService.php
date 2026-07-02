@@ -11,6 +11,7 @@ use App\Models\PayrollItem;
 use App\Models\PayrollItemLeaveAdjustment;
 use App\Models\SalaryStructure;
 use App\Services\Hr\HrScopeService;
+use App\Services\Hr\OrgUnitStreamService;
 use App\Services\Leave\PaidLeaveBankService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -40,11 +41,12 @@ class PayrollGenerationService
         string $periodFrom,
         string $periodTo,
         ?string $paymentDate = null,
-        ?int $orgUnitId = null,
+        array $orgUnitIds = [],
         array $departmentStreamIds = [],
         string $batchType = 'regular',
         float $defaultDisbursementPct = 100.00,
     ): PayrollBatch {
+        $orgUnitIds = array_values(array_unique(array_map('intval', $orgUnitIds)));
         $from = Carbon::parse($periodFrom)->startOfDay();
         $to   = Carbon::parse($periodTo)->endOfDay();
 
@@ -65,8 +67,23 @@ class PayrollGenerationService
 
         $this->hrScope->applyToEmployeeQuery($employeeQuery);
 
-        if ($orgUnitId !== null) {
-            $employeeQuery->where('org_unit_id', $orgUnitId);
+        if (! empty($orgUnitIds)) {
+            $employeeQuery->whereIn('org_unit_id', $orgUnitIds);
+        }
+
+        $allowedDepartmentStreamIds = app(OrgUnitStreamService::class)->allowedActiveIdsForAny($orgUnitIds);
+
+        if ($allowedDepartmentStreamIds !== null) {
+            $departmentStreamIds = empty($departmentStreamIds)
+                ? $allowedDepartmentStreamIds
+                : array_values(array_intersect(
+                    array_map('intval', $departmentStreamIds),
+                    $allowedDepartmentStreamIds,
+                ));
+
+            if (empty($departmentStreamIds)) {
+                $employeeQuery->whereRaw('1 = 0');
+            }
         }
 
         if (! empty($departmentStreamIds)) {
@@ -82,7 +99,7 @@ class PayrollGenerationService
         $excessMap = $this->buildPaidLeaveExcessMap($employees->pluck('id'), $from, $to);
 
         return DB::transaction(function () use (
-            $from, $to, $paymentDate, $orgUnitId, $departmentStreamIds,
+            $from, $to, $paymentDate, $orgUnitIds, $departmentStreamIds,
             $batchType, $defaultDisbursementPct,
             $employees, $totalWorkingDays, $leaveMap, $excessMap
         ) {
@@ -93,7 +110,7 @@ class PayrollGenerationService
                 'period_from'              => $from->toDateString(),
                 'period_to'                => $to->toDateString(),
                 'payment_date'             => $paymentDate,
-                'org_unit_id'              => $orgUnitId,
+                'org_unit_id'              => count($orgUnitIds) === 1 ? $orgUnitIds[0] : null,
                 'department_stream_id'     => count($departmentStreamIds) === 1 ? $departmentStreamIds[0] : null,
                 'generated_by'             => Auth::id(),
                 'status'                   => 'draft',

@@ -9,11 +9,12 @@
             />
 
             <x-ui.select
-                wire:model="form.org_unit_id"
+                wire:model.live="form.org_unit_id"
                 label="Office / Unit"
                 :options="$orgUnitOptions"
                 :error="$errors->first('form.org_unit_id')"
                 placeholder="Select office / unit"
+                required
             />
 
             <x-ui.select
@@ -21,7 +22,8 @@
                 label="Stream"
                 :options="$departmentStreamOptions"
                 :error="$errors->first('form.department_stream_id')"
-                placeholder="Select PHED or JJM"
+                :placeholder="$departmentStreamPlaceholder"
+                required
             />
 
             <x-ui.select

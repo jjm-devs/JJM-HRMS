@@ -191,12 +191,64 @@
                 hint="Date salary will be credited"
             />
 
-            <x-ui.select
-                wire:model="orgUnitId"
-                label="Organisation Unit"
-                :options="$orgUnits"
-                placeholder="Select organisation unit"
-            />
+            @if ($isHeadOfficeHr)
+                <div x-data="{ q: '' }">
+                    <div class="mb-1.5 flex items-center justify-between">
+                        <p class="text-sm font-medium text-slate-700">
+                            Offices
+                            @if (count($orgUnitIds))
+                                <span class="font-normal text-slate-400">({{ count($orgUnitIds) }} selected)</span>
+                            @endif
+                        </p>
+                        <div class="flex items-center gap-3 text-xs">
+                            <button type="button" wire:click="selectAllOffices" class="font-medium text-blue-700 hover:underline">Select all</button>
+                            @if (count($orgUnitIds))
+                                <button type="button" wire:click="clearOffices" class="font-medium text-slate-500 hover:underline">Clear</button>
+                            @endif
+                        </div>
+                    </div>
+
+                    <input
+                        type="text"
+                        x-model="q"
+                        placeholder="Search offices…"
+                        class="mb-2 block w-full border border-slate-300 px-3 py-1.5 text-sm text-slate-900 shadow-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                    >
+
+                    <div class="space-y-2 rounded border border-slate-200 bg-slate-50 px-3 py-2.5" style="max-height: 14rem; overflow-y: auto;">
+                        @foreach ($orgUnits as $id => $name)
+                            <label
+                                wire:key="office-{{ $id }}"
+                                class="flex cursor-pointer items-center gap-2.5"
+                                x-show="q === '' || @js(strtolower($name)).includes(q.toLowerCase().trim())"
+                            >
+                                <input
+                                    type="checkbox"
+                                    wire:model.live="orgUnitIds"
+                                    value="{{ $id }}"
+                                    class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                >
+                                <span class="text-sm text-slate-700">{{ $name }}</span>
+                            </label>
+                        @endforeach
+                    </div>
+                    <p class="mt-1 text-xs text-slate-400">Select at least one office. Your selection is saved for next time.</p>
+                    @error('orgUnitIds')
+                        <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                    @enderror
+                    @error('orgUnitIds.*')
+                        <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                    @enderror
+                </div>
+            @else
+                <x-ui.select
+                    wire:model.live="orgUnitId"
+                    label="Organisation Unit"
+                    :options="$orgUnits"
+                    placeholder="Select organisation unit"
+                    :error="$errors->first('orgUnitId')"
+                />
+            @endif
 
             <div>
                 <p class="mb-1.5 text-sm font-medium text-slate-700">Department Streams</p>
@@ -213,7 +265,7 @@
                         </label>
                     @endforeach
                 </div>
-                <p class="mt-1 text-xs text-slate-400">Leave all unchecked to include employees from all streams.</p>
+                <p class="mt-1 text-xs text-slate-400">Leave all unchecked to include every stream available for the selected office(s).</p>
                 @error('departmentStreamIds')
                     <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                 @enderror

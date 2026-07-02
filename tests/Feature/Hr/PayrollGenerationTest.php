@@ -3,9 +3,12 @@
 namespace Tests\Feature\Hr;
 
 use App\Livewire\Hr\Payroll\Index as PayrollIndex;
+use App\Models\DepartmentStream;
 use App\Models\Employee;
+use App\Models\HrScopeAssignment;
 use App\Models\LeaveApplication;
 use App\Models\LeaveType;
+use App\Models\OrgUnit;
 use App\Models\PayrollBatch;
 use App\Models\PayrollItem;
 use App\Models\PayrollItemLeaveAdjustment;
@@ -240,6 +243,92 @@ class PayrollGenerationTest extends TestCase
         $this->assertSame(30000.0, (float) $item->net_salary);
     }
 
+    public function test_payroll_generation_limits_unchecked_streams_to_org_unit_mapping(): void
+    {
+        $hr = User::query()->create([
+            'name' => 'Payroll HR',
+            'email' => 'hr-payroll-streams@example.test',
+            'password' => 'password',
+            'is_hr' => true,
+            'status' => 'active',
+        ]);
+
+        $orgUnit = OrgUnit::query()->create([
+            'name' => 'Mapped Division',
+            'code' => 'MAPPED-DIV',
+            'type' => 'division',
+            'status' => 'active',
+        ]);
+
+        $allowedStream = DepartmentStream::query()->create([
+            'name' => 'Allowed Stream',
+            'code' => 'ALLOWED',
+            'status' => 'active',
+        ]);
+
+        $blockedStream = DepartmentStream::query()->create([
+            'name' => 'Blocked Stream',
+            'code' => 'BLOCKED',
+            'status' => 'active',
+        ]);
+
+        $orgUnit->departmentStreams()->sync([$allowedStream->id]);
+
+        $allowedEmployee = Employee::query()->create([
+            'employee_code' => 'EMP-STREAM-00001',
+            'full_name' => 'Allowed Payroll Employee',
+            'org_unit_id' => $orgUnit->id,
+            'department_stream_id' => $allowedStream->id,
+            'service_status' => 'active',
+        ]);
+
+        $blockedEmployee = Employee::query()->create([
+            'employee_code' => 'EMP-STREAM-00002',
+            'full_name' => 'Blocked Payroll Employee',
+            'org_unit_id' => $orgUnit->id,
+            'department_stream_id' => $blockedStream->id,
+            'service_status' => 'active',
+        ]);
+
+        $basic = SalaryComponent::query()->create([
+            'name' => 'Basic Salary',
+            'code' => 'BASIC-STREAM',
+            'type' => 'earning',
+            'calculation_type' => 'fixed',
+            'default_amount' => 0,
+            'status' => 'active',
+        ]);
+
+        foreach ([$allowedEmployee, $blockedEmployee] as $employee) {
+            $structure = $employee->salaryStructures()->create([
+                'basic_salary' => 30000,
+                'grade_pay' => 0,
+                'status' => 'active',
+            ]);
+
+            $structure->employeeSalaryComponents()->create([
+                'salary_component_id' => $basic->id,
+                'amount' => 30000,
+                'calculation_type' => 'fixed',
+                'status' => 'active',
+            ]);
+        }
+
+        $this->actingAs($hr);
+
+        $batch = app(PayrollGenerationService::class)->generate(
+            periodFrom: '2026-06-01',
+            periodTo: '2026-06-30',
+            paymentDate: '2026-06-30',
+            orgUnitIds: [$orgUnit->id],
+            departmentStreamIds: [],
+        );
+
+        $this->assertSame(1, $batch->items()->count());
+        $this->assertTrue($batch->items()->where('employee_id', $allowedEmployee->id)->exists());
+        $this->assertFalse($batch->items()->where('employee_id', $blockedEmployee->id)->exists());
+    }
+
     public function test_payroll_pages_render_primary_actions_and_links(): void
     {
         $hr = User::query()->create([
@@ -250,17 +339,41 @@ class PayrollGenerationTest extends TestCase
             'status' => 'active',
         ]);
 
+        $orgUnit = OrgUnit::query()->create([
+            'name' => 'Payroll Detail Division',
+            'code' => 'PAYROLL-DETAIL-DIV',
+            'type' => 'division',
+            'status' => 'active',
+        ]);
+
+        HrScopeAssignment::query()->create([
+            'user_id' => $hr->id,
+            'org_unit_id' => $orgUnit->id,
+            'is_ho' => true,
+            'include_child_units' => true,
+            'can_view' => true,
+            'status' => 'active',
+        ]);
+
+        $stream = DepartmentStream::query()->create([
+            'name' => 'Payroll Detail Stream',
+            'code' => 'PAYROLL-DETAIL-STREAM',
+            'status' => 'active',
+        ]);
+
         $employee = Employee::query()->create([
             'employee_code' => 'EMP-PAYROLL-00002',
             'full_name' => 'Payroll Page Employee',
+            'org_unit_id' => $orgUnit->id,
+            'department_stream_id' => $stream->id,
             'service_status' => 'active',
         ]);
 
         $batch = PayrollBatch::query()->create([
             'batch_number' => 'PAY-2026-06-001',
-            'period_from' => '2026-06-01',
-            'period_to' => '2026-06-30',
-            'payment_date' => '2026-06-30',
+            'period_from' => now()->startOfMonth()->toDateString(),
+            'period_to' => now()->endOfMonth()->toDateString(),
+            'payment_date' => now()->endOfMonth()->toDateString(),
             'generated_by' => $hr->id,
             'gross_total' => 1000,
             'net_total' => 900,
@@ -309,10 +422,21 @@ class PayrollGenerationTest extends TestCase
 
         $this->get(route('hr.payroll.batch.detail', $batch))
             ->assertOk()
+            ->assertSee('View Coverage')
+            ->assertSee('Payroll Detail Division')
+            ->assertSee('Payroll Detail Stream')
             ->assertSee(route('hr.payroll.leave.review', [$batch, $item]), false);
 
         $this->get(route('hr.payroll.leave.review', [$batch, $item]))
             ->assertOk()
+            ->assertSee('Payroll Detail Division')
+            ->assertSee('Payroll Detail Stream')
+            ->assertSee(route('hr.payroll.batch.detail', $batch), false);
+
+        $this->get(route('hr.payroll.item.adjustments', [$batch, $item]))
+            ->assertOk()
+            ->assertSee('Payroll Detail Division')
+            ->assertSee('Payroll Detail Stream')
             ->assertSee(route('hr.payroll.batch.detail', $batch), false);
     }
 

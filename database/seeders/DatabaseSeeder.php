@@ -9,6 +9,7 @@ use App\Models\Employee;
 use App\Models\EmploymentType;
 use App\Models\HrScopeAssignment;
 use App\Models\OrgUnit;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -47,6 +48,35 @@ class DatabaseSeeder extends Seeder
                 'email_verified_at' => now(),
             ],
         );
+
+        $workflowHrUsers = [
+            ['spo-fm@jjmbrain.local', 'SPO FM User', 'spo_fm'],
+            ['deputy-md@jjmbrain.local', 'Deputy MD User', 'deputy_md'],
+            ['fa@jjmbrain.local', 'FA User', 'fa'],
+            ['addt-chief-eng@jjmbrain.local', 'Addt Chief Eng User', 'addt_chief_eng'],
+            ['addt-md@jjmbrain.local', 'Addt. MD User', 'addt_md'],
+            ['md@jjmbrain.local', 'MD User', 'md'],
+        ];
+
+        $workflowRoleUsers = collect($workflowHrUsers)
+            ->mapWithKeys(function (array $workflowUser): array {
+                [$email, $name, $roleCode] = $workflowUser;
+
+                $user = User::query()->updateOrCreate(
+                    ['email' => $email],
+                    [
+                        'name' => $name,
+                        'password' => 'password',
+                        'is_admin' => false,
+                        'is_hr' => true,
+                        'status' => 'active',
+                        'must_change_password' => false,
+                        'email_verified_at' => now(),
+                    ],
+                );
+
+                return [$roleCode => $user];
+            });
 
         $employeeUser = User::query()->updateOrCreate(
             ['email' => 'employee@jjmbrain.local'],
@@ -127,14 +157,8 @@ class DatabaseSeeder extends Seeder
             ],
         );
 
-        $sampleOrgUnit = OrgUnit::query()
-            ->where('type', 'sub_division')
-            ->orderBy('name')
-            ->first();
-
         $headOffice = OrgUnit::query()
-            ->where('type', 'head_office')
-            ->orderBy('name')
+            ->where('name', 'Office Of the Chief Engineer(Water)')
             ->first();
 
         if ($headOffice) {
@@ -156,12 +180,30 @@ class DatabaseSeeder extends Seeder
             );
         }
 
+        $rolesByCode = Role::query()
+            ->whereIn('code', Role::PAYROLL_ROLE_CODES)
+            ->pluck('id', 'code');
+
+        if ($rolesByCode->has('hr')) {
+            $hrUser->roles()->sync([$rolesByCode->get('hr')]);
+        }
+
+        $workflowRoleUsers->each(function (User $user, string $roleCode) use ($rolesByCode): void {
+            $roleId = $rolesByCode->get($roleCode);
+
+            $user->roles()->sync($roleId ? [$roleId] : []);
+        });
+
+        HrScopeAssignment::query()
+            ->whereIn('user_id', $workflowRoleUsers->pluck('id'))
+            ->delete();
+
         Employee::query()->updateOrCreate(
             ['employee_code' => 'EMP-2026-00001'],
             [
                 'user_id' => $employeeUser->id,
                 'full_name' => 'Sample Employee',
-                'org_unit_id' => $sampleOrgUnit?->id,
+                'org_unit_id' => $headOffice?->id,
                 'department_stream_id' => $phed->id,
                 'employment_type_id' => EmploymentType::query()->where('code', 'REGULAR')->value('id'),
                 'cadre_id' => $engineeringCadre->id,

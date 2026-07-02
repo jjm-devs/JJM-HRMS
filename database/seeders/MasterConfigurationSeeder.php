@@ -74,6 +74,7 @@ class MasterConfigurationSeeder extends Seeder
 
         $leaveTypes = [];
         foreach ([
+            ['CL', 'Casual Leave', true, false, true],
             ['PL', 'Paid Leave', true, false, false],
             ['ML', 'Medical Leave', true, true, false],
             ['MAT', 'Maternity Leave', true, true, false],

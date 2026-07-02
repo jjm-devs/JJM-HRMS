@@ -20,12 +20,16 @@ class LeaveReview extends Component
 
     public function mount(): void
     {
+        abort_unless(app(\App\Services\Hr\HrScopeService::class)->canAccessPayrollModule(), 403);
+
         abort_if($this->batch->locked_at !== null, 403, 'This batch is locked.');
         abort_unless($this->item->payroll_batch_id === $this->batch->id, 404);
         abort_unless(app(PayrollWorkflowService::class)->canCurrentUserEdit($this->batch), 403);
 
         $this->item->load([
-            'employee:id,full_name,employee_code',
+            'employee:id,full_name,employee_code,org_unit_id,department_stream_id',
+            'employee.orgUnit:id,name',
+            'employee.departmentStream:id,name',
             'leaveAdjustments.leaveApplication:id,start_date,end_date',
         ]);
 

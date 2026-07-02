@@ -3,11 +3,12 @@
 namespace App\Livewire\Hr\Employees;
 
 use App\Models\Cadre;
-use App\Models\DepartmentStream;
 use App\Models\Designation;
 use App\Models\Employee;
 use App\Models\EmploymentType;
 use App\Models\OrgUnit;
+use App\Services\Hr\HrScopeService;
+use App\Services\Hr\OrgUnitStreamService;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 
@@ -55,6 +56,11 @@ class Edit extends Component
         return redirect()->route('hr.employees.show', $this->employee);
     }
 
+    public function updatedFormOrgUnitId(): void
+    {
+        $this->clearUnavailableDepartmentStream();
+    }
+
     public function render()
     {
         return view('livewire.hr.employees.edit', $this->formData());
@@ -72,8 +78,8 @@ class Edit extends Component
             'form.blood_group' => ['nullable', 'string', 'max:10'],
             'form.aadhaar_number' => ['nullable', 'string', 'max:20', Rule::unique('employees', 'aadhaar_number')->ignore($this->employee)],
             'form.pan_number' => ['nullable', 'string', 'max:20', Rule::unique('employees', 'pan_number')->ignore($this->employee)],
-            'form.org_unit_id' => ['nullable', 'exists:org_units,id'],
-            'form.department_stream_id' => ['nullable', 'exists:department_streams,id'],
+            'form.org_unit_id' => ['required', $this->orgUnitRule()],
+            'form.department_stream_id' => ['required', $this->departmentStreamRule()],
             'form.employment_type_id' => ['nullable', 'exists:employment_types,id'],
             'form.cadre_id' => ['nullable', 'exists:cadres,id'],
             'form.designation_id' => ['nullable', 'exists:designations,id'],
@@ -87,8 +93,9 @@ class Edit extends Component
     private function formData(): array
     {
         return [
-            'orgUnitOptions' => OrgUnit::query()->orderBy('type')->orderBy('name')->pluck('name', 'id')->all(),
-            'departmentStreamOptions' => DepartmentStream::query()->orderBy('name')->pluck('name', 'id')->all(),
+            'orgUnitOptions' => $this->orgUnitOptions(),
+            'departmentStreamOptions' => app(OrgUnitStreamService::class)->mappedActiveOptionsFor($this->form['org_unit_id'] ?? null),
+            'departmentStreamPlaceholder' => $this->departmentStreamPlaceholder(),
             'employmentTypeOptions' => EmploymentType::query()->orderBy('name')->pluck('name', 'id')->all(),
             'cadreOptions' => Cadre::query()->orderBy('name')->pluck('name', 'id')->all(),
             'designationOptions' => Designation::query()->orderBy('name')->pluck('name', 'id')->all(),
@@ -105,6 +112,81 @@ class Edit extends Component
         }
 
         return $data;
+    }
+
+    /**
+     * Offices the current HR may assign to: their scoped org units (own unit,
+     * plus child units when include_child_units is set). Unrestricted HR see all.
+     * The employee's current office is always included so an edit never breaks.
+     *
+     * @return array<int, string>
+     */
+    private function orgUnitOptions(): array
+    {
+        $query = OrgUnit::query()->orderBy('type')->orderBy('name');
+
+        $scopedIds = $this->scopedOrgUnitIds();
+        if ($scopedIds !== null) {
+            $query->whereIn('id', $scopedIds);
+        }
+
+        return $query->pluck('name', 'id')->all();
+    }
+
+    private function orgUnitRule()
+    {
+        $scopedIds = $this->scopedOrgUnitIds();
+
+        return $scopedIds === null
+            ? Rule::exists('org_units', 'id')
+            : Rule::in($scopedIds);
+    }
+
+    /**
+     * Scoped org unit ids, always including the employee's current office.
+     *
+     * @return array<int, int>|null
+     */
+    private function scopedOrgUnitIds(): ?array
+    {
+        $scoped = app(HrScopeService::class)->scopedOrgUnitIds();
+
+        if ($scoped === null) {
+            return null;
+        }
+
+        return $scoped
+            ->when($this->employee->org_unit_id !== null, fn ($ids) => $ids->push($this->employee->org_unit_id))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function departmentStreamRule()
+    {
+        // Strict: the stream must be one explicitly mapped to the selected office.
+        return Rule::in(app(OrgUnitStreamService::class)->mappedActiveIdsFor($this->form['org_unit_id'] ?? null));
+    }
+
+    private function departmentStreamPlaceholder(): string
+    {
+        if (blank($this->form['org_unit_id'] ?? null)) {
+            return 'Select an office first';
+        }
+
+        return app(OrgUnitStreamService::class)->mappedActiveOptionsFor($this->form['org_unit_id'])
+            ? 'Select stream'
+            : 'No streams set for this unit';
+    }
+
+    private function clearUnavailableDepartmentStream(): void
+    {
+        if (! app(OrgUnitStreamService::class)->isStreamMappedTo(
+            $this->form['org_unit_id'] ?? null,
+            $this->form['department_stream_id'] ?? null,
+        )) {
+            $this->form['department_stream_id'] = '';
+        }
     }
 
     private function statusOptions(): array

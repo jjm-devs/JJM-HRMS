@@ -12,6 +12,7 @@ use App\Models\Employee;
 use App\Models\HrScopeAssignment;
 use App\Models\OrgUnit;
 use App\Models\PayrollBatch;
+use App\Services\Hr\HrScopeService;
 use App\Models\PayrollItem;
 use App\Models\User;
 use App\Services\Payroll\PayrollBatchDocumentService;
@@ -28,33 +29,18 @@ class PayrollHoPermissionTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_creator_hr_can_edit_adjustments_but_cannot_submit_without_ho_scope(): void
+    public function test_plain_hr_without_ho_or_workflow_role_cannot_access_payroll(): void
     {
         [$creator, , $batch, $item] = $this->payrollFixture();
 
         $this->actingAs($creator);
 
-        $this->assertTrue(app(PayrollWorkflowService::class)->canHrEditBeforeSubmission($batch, $creator));
-        $this->assertFalse(app(PayrollWorkflowService::class)->canSubmitFromHr($batch, $creator));
+        // Plain HR (no Head Office scope, no payroll workflow role) is excluded
+        // from the payroll module entirely.
+        $this->assertFalse(app(HrScopeService::class)->canAccessPayrollModule($creator));
 
-        Livewire::test(ItemAdjustment::class, ['batch' => $batch, 'item' => $item])
-            ->set('type', 'deduction')
-            ->set('label', 'Recovery')
-            ->set('amount', '500')
-            ->set('note', 'Small deduction')
-            ->call('save')
-            ->assertHasNoErrors();
-
-        $this->assertDatabaseHas('payroll_item_adjustments', [
-            'payroll_item_id' => $item->id,
-            'type' => 'deduction',
-            'label' => 'Recovery',
-            'amount' => 500,
-        ]);
-
-        $this->expectForbidden(function () use ($batch) {
-            app(PayrollWorkflowService::class)->submitFromHr($batch);
-        });
+        // The payroll batch page 403s for a plain HR.
+        $this->get(route('hr.payroll.batch.detail', $batch))->assertForbidden();
     }
 
     public function test_ho_hr_can_submit_batch_to_workflow(): void

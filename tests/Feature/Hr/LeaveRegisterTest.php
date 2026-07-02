@@ -88,7 +88,8 @@ class LeaveRegisterTest extends TestCase
 
         Livewire::test(Index::class)
             ->set('activeTab', 'leave_register')
-            ->set('month', '2026-06')
+            ->set('dateFrom', '2026-06-01')
+            ->set('dateTo', '2026-06-30')
             ->assertSee('Leave Register')
             ->assertSee('Leave Employee')
             ->assertSee('Manual HR')

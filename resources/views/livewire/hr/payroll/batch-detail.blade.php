@@ -352,7 +352,7 @@
 
     {{-- filters --}}
     <x-ui.card class="mt-5">
-        <div class="grid gap-3 sm:grid-cols-2">
+        <div class="grid gap-3 md:grid-cols-3 md:items-end">
             <x-ui.input
                 wire:model.live.debounce.300ms="search"
                 label="Search Employee"
@@ -364,6 +364,16 @@
                 :options="['draft' => 'Draft', 'pending' => 'Pending', 'adjusted' => 'Adjusted', 'approved' => 'Approved']"
                 placeholder="All"
             />
+            <div class="flex justify-end">
+                <x-ui.button
+                    variant="primary"
+                    size="sm"
+                    class="whitespace-nowrap px-3"
+                    x-on:click="$dispatch('open-modal', { name: 'batch-coverage' })"
+                >
+                    View Coverage
+                </x-ui.button>
+            </div>
         </div>
     </x-ui.card>
 
@@ -387,6 +397,11 @@
                         <span class="font-medium text-slate-900">{{ $item->employee?->full_name ?? '—' }}</span>
                         <p class="text-xs text-slate-400">{{ $item->employee?->employee_code ?? '' }}</p>
                         <p class="text-xs text-slate-400">{{ $item->employee?->orgUnit?->name ?? '' }}</p>
+                        @if ($item->employee?->departmentStream)
+                            <x-ui.badge variant="info" class="mt-1">
+                                {{ $item->employee->departmentStream->name }}
+                            </x-ui.badge>
+                        @endif
                     </x-ui.table.td>
                     <x-ui.table.td>
                         <span class="text-sm text-slate-700">₹{{ number_format($item->basic_salary, 2) }}</span>
@@ -499,6 +514,46 @@
 
         <div class="mt-4">{{ $items->links() }}</div>
     </div>
+
+    <x-ui.modal name="batch-coverage" title="Included Org Units & Streams" size="lg">
+        <div class="grid gap-5 md:grid-cols-2">
+            <div>
+                <h3 class="text-sm font-semibold text-slate-800">Org Units</h3>
+                <div class="mt-3 space-y-2">
+                    @forelse ($batchCoverage['orgUnits'] as $orgUnit)
+                        <div class="flex items-center justify-between gap-3 border border-slate-100 bg-slate-50 px-3 py-2">
+                            <span class="text-sm font-medium text-slate-700">{{ $orgUnit['name'] }}</span>
+                            <span class="inline-flex min-w-8 items-center justify-center bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                                {{ number_format($orgUnit['count']) }}
+                            </span>
+                        </div>
+                    @empty
+                        <p class="py-4 text-sm text-slate-400">No org units found in this batch.</p>
+                    @endforelse
+                </div>
+            </div>
+
+            <div>
+                <h3 class="text-sm font-semibold text-slate-800">Streams</h3>
+                <div class="mt-3 space-y-2">
+                    @forelse ($batchCoverage['streams'] as $stream)
+                        <div class="flex items-center justify-between gap-3 border border-slate-100 bg-slate-50 px-3 py-2">
+                            <span class="text-sm font-medium text-slate-700">{{ $stream['name'] }}</span>
+                            <span class="inline-flex min-w-8 items-center justify-center bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">
+                                {{ number_format($stream['count']) }}
+                            </span>
+                        </div>
+                    @empty
+                        <p class="py-4 text-sm text-slate-400">No streams found in this batch.</p>
+                    @endforelse
+                </div>
+            </div>
+        </div>
+
+        <x-slot:footer>
+            <x-ui.button variant="secondary" x-on:click="$dispatch('close-modal', { name: 'batch-coverage' })">Close</x-ui.button>
+        </x-slot:footer>
+    </x-ui.modal>
 
     {{-- submit workflow modal --}}
     <x-ui.modal name="submit-payroll-batch" title="{{ $batch->status === 'returned' ? 'Resubmit Payroll' : 'Submit Payroll' }}">
