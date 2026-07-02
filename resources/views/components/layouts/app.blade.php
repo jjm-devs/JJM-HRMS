@@ -31,6 +31,11 @@
         @livewireStyles
     </head>
     <body class="min-h-screen bg-slate-50 font-sans text-slate-950 antialiased">
+        @if (in_array(config('app.env'), ['development', 'developement', 'local'], true))
+            <div class="border-b border-yellow-300 bg-yellow-100 px-4 py-2 text-center text-sm font-semibold text-yellow-900">
+                This app is in development. Any data entered here will not be available in production.
+            </div>
+        @endif
 
         @if ($showNav && auth()->check())
             <div class="flex min-h-screen">
