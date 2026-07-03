@@ -397,11 +397,14 @@
                         <span class="font-medium text-slate-900">{{ $item->employee?->full_name ?? '—' }}</span>
                         <p class="text-xs text-slate-400">{{ $item->employee?->employee_code ?? '' }}</p>
                         <p class="text-xs text-slate-400">{{ $item->employee?->orgUnit?->name ?? '' }}</p>
-                        @if ($item->employee?->departmentStream)
-                            <x-ui.badge variant="info" class="mt-1">
-                                {{ $item->employee->departmentStream->name }}
-                            </x-ui.badge>
-                        @endif
+                        <div class="mt-1 flex flex-wrap gap-1">
+                            @if ($item->employee?->departmentStream)
+                                <x-ui.badge variant="info">{{ $item->employee->departmentStream->name }}</x-ui.badge>
+                            @endif
+                            @if ($item->employee?->staffCategory)
+                                <x-ui.badge variant="purple">{{ $item->employee->staffCategory->name }}</x-ui.badge>
+                            @endif
+                        </div>
                     </x-ui.table.td>
                     <x-ui.table.td>
                         <span class="text-sm text-slate-700">₹{{ number_format($item->basic_salary, 2) }}</span>

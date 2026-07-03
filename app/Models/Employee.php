@@ -18,6 +18,7 @@ class Employee extends Model
         'employee_code',
         'org_unit_id',
         'department_stream_id',
+        'staff_category_id',
         'employment_type_id',
         'designation_id',
         'cadre_id',
@@ -61,6 +62,11 @@ class Employee extends Model
     public function departmentStream(): BelongsTo
     {
         return $this->belongsTo(DepartmentStream::class);
+    }
+
+    public function staffCategory(): BelongsTo
+    {
+        return $this->belongsTo(StaffCategory::class);
     }
 
     public function employmentType(): BelongsTo

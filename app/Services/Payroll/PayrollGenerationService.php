@@ -43,10 +43,12 @@ class PayrollGenerationService
         ?string $paymentDate = null,
         array $orgUnitIds = [],
         array $departmentStreamIds = [],
+        array $staffCategoryIds = [],
         string $batchType = 'regular',
         float $defaultDisbursementPct = 100.00,
     ): PayrollBatch {
         $orgUnitIds = array_values(array_unique(array_map('intval', $orgUnitIds)));
+        $staffCategoryIds = array_values(array_unique(array_map('intval', $staffCategoryIds)));
         $from = Carbon::parse($periodFrom)->startOfDay();
         $to   = Carbon::parse($periodTo)->endOfDay();
 
@@ -69,6 +71,10 @@ class PayrollGenerationService
 
         if (! empty($orgUnitIds)) {
             $employeeQuery->whereIn('org_unit_id', $orgUnitIds);
+        }
+
+        if (! empty($staffCategoryIds)) {
+            $employeeQuery->whereIn('staff_category_id', $staffCategoryIds);
         }
 
         $allowedDepartmentStreamIds = app(OrgUnitStreamService::class)->allowedActiveIdsForAny($orgUnitIds);

@@ -215,5 +215,6 @@ class DatabaseSeeder extends Seeder
 
         $this->call(MasterConfigurationSeeder::class);
         $this->call(SanctionActivitySeeder::class);
+        $this->call(StaffCategorySeeder::class);
     }
 }

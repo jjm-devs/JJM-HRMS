@@ -27,6 +27,15 @@
             />
 
             <x-ui.select
+                wire:model="form.staff_category_id"
+                label="Staff Category"
+                :options="$staffCategoryOptions"
+                :error="$errors->first('form.staff_category_id')"
+                placeholder="None — not a district staff"
+                hint="Only district (DMMU) staff have a category. Pick Support or WQ for them; leave as None for all other staff (SMMU, KRC, SRL, UNICEF, Grade IV)."
+            />
+
+            <x-ui.select
                 wire:model="form.employment_type_id"
                 label="Employment Type"
                 :options="$employmentTypeOptions"
