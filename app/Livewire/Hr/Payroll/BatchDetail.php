@@ -337,9 +337,10 @@ class BatchDetail extends Component
         $items = PayrollItem::query()
             ->where('payroll_batch_id', $this->batch->id)
             ->with([
-                'employee:id,full_name,employee_code,org_unit_id,department_stream_id',
+                'employee:id,full_name,employee_code,org_unit_id,department_stream_id,staff_category_id',
                 'employee.orgUnit:id,name',
                 'employee.departmentStream:id,name',
+                'employee.staffCategory:id,name',
                 'adjustments',
                 'payslip:id,payroll_item_id,status,generated_at',
             ])

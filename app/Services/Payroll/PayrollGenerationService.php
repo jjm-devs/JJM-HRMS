@@ -43,10 +43,12 @@ class PayrollGenerationService
         ?string $paymentDate = null,
         array $orgUnitIds = [],
         array $departmentStreamIds = [],
+        array $staffCategoryIds = [],
         string $batchType = 'regular',
         float $defaultDisbursementPct = 100.00,
     ): PayrollBatch {
         $orgUnitIds = array_values(array_unique(array_map('intval', $orgUnitIds)));
+        $staffCategoryIds = array_values(array_unique(array_map('intval', $staffCategoryIds)));
         $from = Carbon::parse($periodFrom)->startOfDay();
         $to   = Carbon::parse($periodTo)->endOfDay();
 
@@ -55,6 +57,11 @@ class PayrollGenerationService
         // ── load employees with their active salary structure ─────────────────
         $employeeQuery = Employee::query()
             ->where('service_status', 'active')
+            // [NEW] Exclude employees who haven't joined yet as of the period end.
+            // Anyone with a joining_date after the batch's period_to has no salary
+            // to process for this period at all, so they're filtered out here
+            // rather than being fetched and skipped later.
+            ->where('joining_date', '<=', $to->toDateString())
             ->with([
                 'salaryStructures' => fn ($q) => $q
                     ->where('status', 'active')
@@ -69,6 +76,10 @@ class PayrollGenerationService
 
         if (! empty($orgUnitIds)) {
             $employeeQuery->whereIn('org_unit_id', $orgUnitIds);
+        }
+
+        if (! empty($staffCategoryIds)) {
+            $employeeQuery->whereIn('staff_category_id', $staffCategoryIds);
         }
 
         $allowedDepartmentStreamIds = app(OrgUnitStreamService::class)->allowedActiveIdsForAny($orgUnitIds);
@@ -166,6 +177,32 @@ class PayrollGenerationService
                     ];
                 }
 
+                // [NEW] Joining-date proration: for an employee whose joining_date
+                // falls inside the current period, the days before they joined must
+                // not be paid. This reuses the same gross/30-day rate as LWP but is
+                // tracked as its own component line so HR can distinguish "didn't
+                // work because on leave" from "didn't work because not yet joined".
+                $joiningDate = $employee->joining_date ? Carbon::parse($employee->joining_date) : null;
+                $prorationDays = $this->joiningProrationDays($from, $to, $joiningDate);
+
+                $prorationDeduction = $this->calculateLwpDeduction(
+                    grossEarnings: $itemGross,
+                    lwpDays: $prorationDays,
+                    totalWorkingDays: $totalWorkingDays,
+                );
+
+                if ($prorationDeduction > 0) {
+                    $itemDeductions += $prorationDeduction;
+                    $componentRows[] = [
+                        'salary_component_id' => null,
+                        'name'                => 'Joining Proration',
+                        'type'                => 'deduction',
+                        'amount'              => $prorationDeduction,
+                        'calculation_details' => $this->joiningProrationDetails($itemGross, $prorationDays, $joiningDate),
+                        'is_manually_adjusted' => false,
+                    ];
+                }
+
                 $netSalary = max($itemGross - $itemDeductions, 0);
 
                 // ── disbursement amounts ───────────────────────────────────────
@@ -181,7 +218,10 @@ class PayrollGenerationService
                     'disbursement_pct'     => $defaultDisbursementPct,
                     'disbursed_amount'     => $disbursedAmount,
                     'outstanding_amount'   => $outstandingAmount,
-                    'attendance_days'      => max($totalWorkingDays - (float) $lwpDays, 0),
+                    // [CHANGED] attendance_days now also nets out proration days,
+                    // so a mid-period joiner's attendance reflects only the days
+                    // they were actually employed for.
+                    'attendance_days'      => max($totalWorkingDays - (float) $lwpDays - (float) $prorationDays, 0),
                     'leave_without_pay_days' => $lwpDays,
                     'lwp_deduction'        => $lwpDeduction,
                     'status'               => 'draft',
@@ -315,6 +355,48 @@ class PayrollGenerationService
             number_format($grossEarnings, 2),
             self::SALARY_DAYS_DIVISOR,
             $lwpDays,
+        );
+    }
+
+    // ── joining-date proration ──────────────────────────────────────────────────
+    // [NEW SECTION] Supports paying a mid-period joiner only for the days they
+    // were actually employed. Deliberately does NOT handle separations/relieving
+    // — that was explicitly out of scope for this change.
+
+    /**
+     * [NEW] Working days within the period BEFORE the employee's joining date.
+     * Returns 0 if the employee joined on/before the period start (no proration
+     * needed) or if there's no joining date on record.
+     *
+     * Note: the employee query already filters out joining_date > $to, so we
+     * don't need to guard against a joining date past the period end here.
+     */
+    private function joiningProrationDays(Carbon $from, Carbon $to, ?Carbon $joiningDate): float
+    {
+        if (! $joiningDate || $joiningDate->lte($from)) {
+            return 0.0;
+        }
+
+        $dayBeforeJoining = $joiningDate->copy()->subDay();
+
+        if ($dayBeforeJoining->lt($from)) {
+            return 0.0;
+        }
+
+        return (float) $this->workingDays($from, $dayBeforeJoining);
+    }
+
+    /**
+     * [NEW] Human-readable breakdown for the "Joining Proration" component row.
+     */
+    private function joiningProrationDetails(float $grossEarnings, float $prorationDays, ?Carbon $joiningDate): string
+    {
+        return sprintf(
+            'Joined %s — Gross ₹%s ÷ %d days × %.1f day(s) before joining',
+            $joiningDate?->toDateString() ?? 'N/A',
+            number_format($grossEarnings, 2),
+            self::SALARY_DAYS_DIVISOR,
+            $prorationDays,
         );
     }
 

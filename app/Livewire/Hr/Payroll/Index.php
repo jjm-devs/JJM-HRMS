@@ -29,6 +29,7 @@ class Index extends Component
     public string $disbursementPct = '100';
 
     public array $departmentStreamIds = [];
+    public array $staffCategoryIds = [];
 
     public function mount(): void
     {
@@ -128,6 +129,8 @@ class Index extends Component
                 'paymentDate'        => ['nullable', 'date'],
                 'departmentStreamIds'   => ['nullable', 'array'],
                 'departmentStreamIds.*' => ['integer', $this->departmentStreamRule()],
+                'staffCategoryIds'      => ['nullable', 'array'],
+                'staffCategoryIds.*'    => ['integer', 'exists:staff_categories,id'],
                 'batchType'          => ['required', 'in:regular,partial'],
                 'disbursementPct'    => $this->batchType === 'partial'
                     ? ['required', 'numeric', 'min:1', 'max:99']
@@ -160,6 +163,7 @@ class Index extends Component
                 paymentDate:            $this->paymentDate ?: null,
                 orgUnitIds:             $offices,
                 departmentStreamIds:    array_map('intval', $this->departmentStreamIds),
+                staffCategoryIds:       array_map('intval', $this->staffCategoryIds),
                 batchType:              $this->batchType,
                 defaultDisbursementPct: $pct,
             );
@@ -232,6 +236,7 @@ class Index extends Component
             'summary'          => $this->summary($scopedIds),
             'orgUnits'         => $this->orgUnitOptions($scopedIds),
             'departmentStreams' => app(OrgUnitStreamService::class)->activeOptionsForAny($this->selectedOfficeIds()),
+            'staffCategories'   => \App\Models\StaffCategory::query()->active()->orderBy('name')->pluck('name', 'id'),
             'statusOptions'    => $this->statusOptions(),
             'canGeneratePayroll' => app(HrScopeService::class)->isHeadOfficeHr(),
             'isHeadOfficeHr'   => $this->isHeadOfficeHr(),
@@ -273,10 +278,12 @@ class Index extends Component
         $this->batchType          = 'regular';
         $this->disbursementPct    = '100';
 
-        // Pre-fill the office/stream selection from the user's last generation.
-        $defaults      = auth()->user()?->payroll_generation_defaults ?? [];
-        $savedOffices  = array_map('intval', $defaults['org_unit_ids'] ?? []);
-        $savedStreams  = array_map('intval', $defaults['department_stream_ids'] ?? []);
+        // Pre-fill the office/stream/category selection from the user's last generation.
+        $defaults       = auth()->user()?->payroll_generation_defaults ?? [];
+        $savedOffices   = array_map('intval', $defaults['org_unit_ids'] ?? []);
+        $savedStreams   = array_map('intval', $defaults['department_stream_ids'] ?? []);
+        $savedCategories = array_map('intval', $defaults['staff_category_ids'] ?? []);
+        $this->staffCategoryIds = array_map('strval', $savedCategories);
 
         if ($scopedIds !== null) {
             $savedOffices = array_values(array_intersect($savedOffices, $scopedIds->all()));
@@ -326,6 +333,7 @@ class Index extends Component
             'payroll_generation_defaults' => [
                 'org_unit_ids' => array_values($offices),
                 'department_stream_ids' => array_values(array_map('intval', $this->departmentStreamIds)),
+                'staff_category_ids' => array_values(array_map('intval', $this->staffCategoryIds)),
             ],
         ]);
     }

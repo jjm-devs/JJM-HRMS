@@ -37,6 +37,7 @@ class ItemAdjustment extends Component
         $this->item->loadMissing([
             'employee.orgUnit:id,name',
             'employee.departmentStream:id,name',
+            'employee.staffCategory:id,name',
         ]);
     }
 

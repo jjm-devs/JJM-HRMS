@@ -27,9 +27,10 @@ class LeaveReview extends Component
         abort_unless(app(PayrollWorkflowService::class)->canCurrentUserEdit($this->batch), 403);
 
         $this->item->load([
-            'employee:id,full_name,employee_code,org_unit_id,department_stream_id',
+            'employee:id,full_name,employee_code,org_unit_id,department_stream_id,staff_category_id',
             'employee.orgUnit:id,name',
             'employee.departmentStream:id,name',
+            'employee.staffCategory:id,name',
             'leaveAdjustments.leaveApplication:id,start_date,end_date',
         ]);
 

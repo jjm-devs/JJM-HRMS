@@ -31,6 +31,11 @@
         @livewireStyles
     </head>
     <body class="min-h-screen bg-slate-50 font-sans text-slate-950 antialiased">
+        @if (in_array(config('app.env'), ['development', 'developement', 'local'], true))
+            <div class="border-b border-yellow-300 bg-yellow-100 px-4 py-2 text-center text-sm font-semibold text-yellow-900">
+                This app is in development. Any data entered here will not be available in production.
+            </div>
+        @endif
 
         @if ($showNav && auth()->check())
             <div class="flex min-h-screen">
@@ -61,6 +66,10 @@
                                 </svg>
                             </button>
                             <span class="text-sm text-slate-500">{{ auth()->user()->name }}</span>
+                            <a href="{{ route('password.change') }}"
+                               class="border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 {{ request()->routeIs('password.change') ? 'bg-slate-100 text-slate-900' : '' }}">
+                                Change Password
+                            </a>
                             <form method="POST" action="{{ route('logout') }}">
                                 @csrf
                                 <button type="submit" class="border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50">

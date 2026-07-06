@@ -19,6 +19,9 @@
                 @if ($item->employee?->departmentStream)
                     <x-ui.badge variant="info">{{ $item->employee->departmentStream->name }}</x-ui.badge>
                 @endif
+                @if ($item->employee?->staffCategory)
+                    <x-ui.badge variant="purple">{{ $item->employee->staffCategory->name }}</x-ui.badge>
+                @endif
             </div>
         </div>
     </div>
