@@ -9,20 +9,21 @@ use App\Models\EmploymentType;
 use App\Models\OrgUnit;
 use App\Models\SalaryComponent;
 use App\Models\StaffCategory;
+use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
 /**
- * One-off import of the real June-2026 payroll roster (from the HR salary
+ * One-off import of the real employee roster (sourced from the HR salary
  * statement): employees, their office/stream/category, designation and salary
  * details. Data lives in database/seeders/data/june_2026_payroll.json.
  *
  * Not wired into DatabaseSeeder — run explicitly when ready:
- *   php artisan db:seed --class=Database\\Seeders\\PayrollEmployeeImportSeeder
+ *   php artisan db:seed --class=Database\\Seeders\\EmployeeRosterImportSeeder
  *
  * Idempotent: employees are matched by their stable JJMA-2026-##### code.
  */
-class PayrollEmployeeImportSeeder extends Seeder
+class EmployeeRosterImportSeeder extends Seeder
 {
     /**
      * Statement division label => org unit name in the tree.
@@ -98,6 +99,12 @@ class PayrollEmployeeImportSeeder extends Seeder
         $missingDivisions = [];
         $imported = 0;
 
+        // Drop logins from the previous (@jjmassam.local) email scheme so the
+        // switch to name@jjmbrain.in doesn't leave orphaned duplicate users.
+        // That domain is unique to this seeder, so it's safe to purge.
+        User::query()->where('email', 'like', '%@jjmassam.local')->delete();
+        $emailSeen = [];
+
         foreach ($rows as $row) {
             // ── resolve office ────────────────────────────────────────────────
             if ($row['stream'] === 'DMMU') {
@@ -130,14 +137,34 @@ class PayrollEmployeeImportSeeder extends Seeder
                     'staff_category_id' => $row['category'] ? ($categoryByCode[$row['category']] ?? null) : null,
                     'designation_id' => $designationId,
                     'employment_type_id' => $contractualId,
-                    'bank_account_number' => $row['account'] ?: null,
-                    'bank_ifsc_code' => $row['ifsc'] ?: null,
-                    'bank_name' => trim(($row['bank'] ?? '')) ?: null,
-                    'bank_branch' => trim(($row['branch'] ?? '')) ?: null,
+                    'bank_account_number' => $this->clip($row['account'] ?? '', 40),
+                    'bank_ifsc_code' => $this->clipIfsc($row['ifsc'] ?? ''),
+                    'bank_name' => $this->clip($row['bank'] ?? '', 150),
+                    'bank_branch' => $this->clip($row['branch'] ?? '', 150),
                     'service_status' => 'active',
                     'remarks' => $row['remarks'] ?: null,
                 ],
             );
+
+            // ── login account ────────────────────────────────────────────────
+            // Name-based email (name@jjmbrain.in); duplicate names get name1,
+            // name2, … Deterministic because rows are processed in JSON order.
+            // firstOrCreate so a re-run never resets a password the user changed.
+            $email = $this->uniqueEmail($row['name'], $row['employee_code'], $emailSeen);
+            $user = User::query()->firstOrCreate(
+                ['email' => $email],
+                [
+                    'name' => $row['name'],
+                    'password' => 'jjm@123',
+                    'is_admin' => false,
+                    'is_hr' => false,
+                    'status' => 'active',
+                    'must_change_password' => false,
+                ],
+            );
+            if ($employee->user_id !== $user->id) {
+                $employee->update(['user_id' => $user->id]);
+            }
 
             // ── salary structure + components ────────────────────────────────
             $structure = $employee->salaryStructures()->updateOrCreate(
@@ -169,6 +196,26 @@ class PayrollEmployeeImportSeeder extends Seeder
         if ($missingDivisions) {
             $this->command?->warn('Unmapped divisions (employees left without office): '.implode(', ', array_keys($missingDivisions)));
         }
+    }
+
+    /**
+     * Build a login email from the employee name: name@jjmbrain.in, with
+     * duplicate names disambiguated as name1@…, name2@… (first keeps no suffix).
+     *
+     * @param  array<string, int>  $seen  base slug => how many already used
+     */
+    private function uniqueEmail(string $name, string $code, array &$seen): string
+    {
+        $base = Str::of($name)->slug('.')->toString();
+        if ($base === '') {
+            $base = strtolower($code);
+        }
+
+        $count = $seen[$base] ?? 0;
+        $seen[$base] = $count + 1;
+        $local = $count === 0 ? $base : $base.$count;
+
+        return $local.'@jjmbrain.in';
     }
 
     /**
@@ -220,6 +267,27 @@ class PayrollEmployeeImportSeeder extends Seeder
         );
 
         return ['BASIC' => $basic->id, 'ENHANCE' => $enhance->id, 'PTAX' => $ptax->id];
+    }
+
+    /**
+     * Trim a value and hard-clip it to the column length (null when empty).
+     */
+    private function clip(mixed $value, int $length): ?string
+    {
+        $value = trim((string) $value);
+
+        return $value === '' ? null : mb_substr($value, 0, $length);
+    }
+
+    /**
+     * Sanitise an IFSC code: uppercase, strip stray junk (the source has values
+     * like "SBIN0015287="), then clip to the 11-char column.
+     */
+    private function clipIfsc(mixed $value): ?string
+    {
+        $value = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string) $value));
+
+        return $value === '' ? null : substr($value, 0, 11);
     }
 
     private function designationCode(string $name): string

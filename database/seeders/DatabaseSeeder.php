@@ -24,10 +24,10 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         User::query()->updateOrCreate(
-            ['email' => 'admin@jjmbrain.local'],
+            ['email' => 'admin@jjmbrain.in'],
             [
                 'name' => 'Super Admin',
-                'password' => 'password',
+                'password' => 'jjm@123',
                 'is_admin' => true,
                 'is_hr' => false,
                 'status' => 'active',
@@ -37,10 +37,10 @@ class DatabaseSeeder extends Seeder
         );
 
         $hrUser = User::query()->updateOrCreate(
-            ['email' => 'hr@jjmbrain.local'],
+            ['email' => 'hr.kangkana@jjmbrain.in'],
             [
-                'name' => 'HR User',
-                'password' => 'password',
+                'name' => 'HR Kangkana',
+                'password' => 'jjm@123',
                 'is_admin' => false,
                 'is_hr' => true,
                 'status' => 'active',
@@ -50,12 +50,12 @@ class DatabaseSeeder extends Seeder
         );
 
         $workflowHrUsers = [
-            ['spo-fm@jjmbrain.local', 'SPO FM User', 'spo_fm'],
-            ['deputy-md@jjmbrain.local', 'Deputy MD User', 'deputy_md'],
-            ['fa@jjmbrain.local', 'FA User', 'fa'],
-            ['addt-chief-eng@jjmbrain.local', 'Addt Chief Eng User', 'addt_chief_eng'],
-            ['addt-md@jjmbrain.local', 'Addt. MD User', 'addt_md'],
-            ['md@jjmbrain.local', 'MD User', 'md'],
+            ['spo-fm@jjmbrain.in', 'SPO FM User', 'spo_fm'],
+            ['deputy-md@jjmbrain.in', 'Deputy MD User', 'deputy_md'],
+            ['fa@jjmbrain.in', 'FA User', 'fa'],
+            ['addt-chief-eng@jjmbrain.in', 'Addt Chief Eng User', 'addt_chief_eng'],
+            ['addt-md@jjmbrain.in', 'Addt. MD User', 'addt_md'],
+            ['md@jjmbrain.in', 'MD User', 'md'],
         ];
 
         $workflowRoleUsers = collect($workflowHrUsers)
@@ -66,7 +66,7 @@ class DatabaseSeeder extends Seeder
                     ['email' => $email],
                     [
                         'name' => $name,
-                        'password' => 'password',
+                        'password' => 'jjm@123',
                         'is_admin' => false,
                         'is_hr' => true,
                         'status' => 'active',
@@ -79,10 +79,10 @@ class DatabaseSeeder extends Seeder
             });
 
         $employeeUser = User::query()->updateOrCreate(
-            ['email' => 'employee@jjmbrain.local'],
+            ['email' => 'employee@jjmbrain.in'],
             [
                 'name' => 'Employee User',
-                'password' => 'password',
+                'password' => 'jjm@123',
                 'is_admin' => false,
                 'is_hr' => false,
                 'status' => 'active',
@@ -111,6 +111,10 @@ class DatabaseSeeder extends Seeder
         DepartmentStream::query()->updateOrCreate(
             ['code' => 'JJMUNICEF'],
             ['name' => 'JJM UNICEF', 'status' => 'active'],
+        );
+        DepartmentStream::query()->updateOrCreate(
+            ['code' => 'DMMU'],
+            ['name' => 'DMMU', 'status' => 'active'],
         );
 
         EmploymentType::query()->updateOrCreate(

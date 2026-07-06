@@ -66,6 +66,10 @@
                                 </svg>
                             </button>
                             <span class="text-sm text-slate-500">{{ auth()->user()->name }}</span>
+                            <a href="{{ route('password.change') }}"
+                               class="border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 {{ request()->routeIs('password.change') ? 'bg-slate-100 text-slate-900' : '' }}">
+                                Change Password
+                            </a>
                             <form method="POST" action="{{ route('logout') }}">
                                 @csrf
                                 <button type="submit" class="border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50">
