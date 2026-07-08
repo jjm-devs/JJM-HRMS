@@ -720,6 +720,37 @@
                 </x-ui.card>
             </div>
         </div>
+    @elseif ($activeTab === 'posting')
+        <div class="mt-5">
+            <x-ui.card title="Posting History" description="Offices this employee has been posted to, newest first.">
+                <x-ui.table :headers="['Office', 'From', 'To', 'Status', 'Order No.']">
+                    @forelse ($postingHistory as $posting)
+                        <tr class="transition hover:bg-slate-50">
+                            <x-ui.table.td>
+                                <span class="font-medium text-slate-800">{{ $posting->orgUnit?->name ?? '—' }}</span>
+                            </x-ui.table.td>
+                            <x-ui.table.td muted>{{ $posting->from_date?->format('d M Y') ?? '—' }}</x-ui.table.td>
+                            <x-ui.table.td muted>{{ $posting->to_date?->format('d M Y') ?? 'Present' }}</x-ui.table.td>
+                            <x-ui.table.td>
+                                <x-ui.badge :variant="$posting->status === 'active' ? 'success' : 'default'">
+                                    {{ $posting->status === 'active' ? 'Current' : 'Past' }}
+                                </x-ui.badge>
+                            </x-ui.table.td>
+                            <x-ui.table.td muted>{{ $posting->order_number ?? '—' }}</x-ui.table.td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="5" class="px-4 py-10">
+                                <x-ui.empty-state
+                                    title="No posting history yet"
+                                    description="A posting entry is created whenever this employee is transferred to another office."
+                                />
+                            </td>
+                        </tr>
+                    @endforelse
+                </x-ui.table>
+            </x-ui.card>
+        </div>
     @else
         <div class="mt-5">
             <x-ui.card :title="$tabs[$activeTab]">
