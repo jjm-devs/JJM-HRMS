@@ -101,8 +101,8 @@ class DatabaseSeeder extends Seeder
             ['name' => 'JJM HQ', 'status' => 'active'],
         );
         DepartmentStream::query()->updateOrCreate(
-            ['code' => 'JJMSLR'],
-            ['name' => 'JJM SLR', 'status' => 'active'],
+            ['code' => 'JJMSRL'],
+            ['name' => 'JJM SRL', 'status' => 'active'],
         );
         DepartmentStream::query()->updateOrCreate(
             ['code' => 'JJMKRC'],

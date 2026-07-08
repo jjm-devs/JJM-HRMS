@@ -230,7 +230,7 @@ class EmployeeRosterImportSeeder extends Seeder
         return [
             'DMMU' => $dmmu->id,
             'SMMU' => $byCode['JJMHQ'] ?? $dmmu->id,       // SMMU -> JJM HQ
-            'SRL' => $byCode['JJMSLR'] ?? $dmmu->id,       // SRL  -> JJM SLR
+            'SRL' => $byCode['JJMSRL'] ?? $dmmu->id,       // SRL  -> JJM SRL
             'KRC' => $byCode['JJMKRC'] ?? $dmmu->id,       // KRC  -> JJM KRC
             'UNICEF' => $byCode['JJMUNICEF'] ?? $dmmu->id, // UNICEF -> JJM UNICEF
             'GRADEIV' => $byCode['JJMHQ'] ?? $dmmu->id,    // Grade-IV allowance staff -> JJM HQ (directorate)

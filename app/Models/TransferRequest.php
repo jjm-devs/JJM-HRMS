@@ -19,9 +19,18 @@ class TransferRequest extends Model
         'transfer_type',
         'reason',
         'requested_date',
+        'effective_date',
         'status',
         'remarks',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'requested_date' => 'date',
+            'effective_date' => 'date',
+        ];
+    }
 
     public function employee(): BelongsTo
     {

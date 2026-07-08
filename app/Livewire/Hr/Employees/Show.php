@@ -563,6 +563,11 @@ class Show extends Component
             'selectedCalculationTypeIsPercentage' => $this->selectedCalculationTypeIsPercentage(),
             'selectedSalaryComponentIsBasic' => $this->selectedSalaryComponentIsBasic(),
             'tabs' => $this->tabs(),
+            'postingHistory' => $this->employee->postingHistories()
+                ->with('orgUnit:id,name')
+                ->orderByDesc('from_date')
+                ->orderByDesc('id')
+                ->get(),
         ]);
     }
 
