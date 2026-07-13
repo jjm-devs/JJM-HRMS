@@ -30,17 +30,17 @@ class OrgUnitSeeder extends Seeder
             ],
         );
 
-        $this->seedZones($headOffice);
-
         $missionDirector = OrgUnit::query()->updateOrCreate(
             ['code' => 'MISSION-DIRECTOR-WATER'],
             [
-                'parent_id' => $headOffice->id,
+                'parent_id' => $department->id,
                 'name' => 'Office of the Mission Director',
                 'type' => 'office',
                 'status' => 'active',
             ],
         );
+
+        $this->seedZones($missionDirector);
 
         $this->mapDepartmentStreams($headOffice, $missionDirector);
     }

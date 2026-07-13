@@ -162,7 +162,7 @@ class DatabaseSeeder extends Seeder
         );
 
         $headOffice = OrgUnit::query()
-            ->where('name', 'Office Of the Chief Engineer(Water)')
+            ->where('name', 'Office of the Mission Director')
             ->first();
 
         if ($headOffice) {
@@ -220,5 +220,6 @@ class DatabaseSeeder extends Seeder
         $this->call(MasterConfigurationSeeder::class);
         $this->call(SanctionActivitySeeder::class);
         $this->call(StaffCategorySeeder::class);
+        $this->call(EmployeeRosterImportSeeder::class);
     }
 }
