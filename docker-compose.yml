@@ -5,39 +5,53 @@ services:
       dockerfile: docker/php/Dockerfile
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8085:80"
+      - '127.0.0.1:8085:80'
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - 'host.docker.internal:host-gateway'
     env_file:
       - .env
     volumes:
-      - app_storage:/var/www/html/storage
+      - 'app_storage:/var/www/html/storage'
+    networks:
+      - default
+      - coolify
 
   queue:
     build:
       context: .
       dockerfile: docker/php/Dockerfile
     restart: unless-stopped
-    command: php artisan queue:work --tries=3 --timeout=90 --sleep=3
+    command: 'php artisan queue:work --tries=3 --timeout=90 --sleep=3'
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - 'host.docker.internal:host-gateway'
     env_file:
       - .env
     volumes:
-      - app_storage:/var/www/html/storage
+      - 'app_storage:/var/www/html/storage'
+    networks:
+      - default
+      - coolify
 
   scheduler:
     build:
       context: .
       dockerfile: docker/php/Dockerfile
     restart: unless-stopped
-    command: php artisan schedule:work --verbose --no-interaction
+    command: 'php artisan schedule:work --verbose --no-interaction'
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - 'host.docker.internal:host-gateway'
     env_file:
       - .env
     volumes:
-      - app_storage:/var/www/html/storage
+      - 'app_storage:/var/www/html/storage'
+    networks:
+      - default
+      - coolify
 
 volumes:
-  app_storage:
+  app_storage: null
+
+networks:
+  default:
+  coolify:
+    external: true
