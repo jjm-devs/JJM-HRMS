@@ -34,6 +34,7 @@ php artisan storage:link --force >/dev/null 2>&1 || true
 # --- 3. Run migrations ---
 if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
     php artisan migrate --force
+    php artisan db:seed
 fi
 
 # --- 4. Cache configurations ---
