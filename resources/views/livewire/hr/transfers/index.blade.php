@@ -12,7 +12,7 @@
     <x-ui.card class="mb-4">
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <x-ui.input
-                wire:model.live.debounce.300ms="search"
+                wire:model.live.debounce.500ms="search"
                 label="Search"
                 placeholder="Employee name or code"
             />

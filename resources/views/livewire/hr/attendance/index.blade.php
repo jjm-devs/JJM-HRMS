@@ -185,19 +185,19 @@
                     <x-ui.card>
                         <div class="grid gap-3 md:grid-cols-4">
                             <x-ui.input
-                                wire:model.live="dateFrom"
+                                wire:model.live.debounce.500ms="dateFrom"
                                 type="date"
                                 label="From"
                             />
 
                             <x-ui.input
-                                wire:model.live="dateTo"
+                                wire:model.live.debounce.500ms="dateTo"
                                 type="date"
                                 label="To"
                             />
 
                             <x-ui.input
-                                wire:model.live.debounce.300ms="search"
+                                wire:model.live.debounce.500ms="search"
                                 label="Search Employee"
                                 placeholder="Name or employee code"
                             />

@@ -12,7 +12,7 @@
     <x-ui.card class="mb-5">
         <div class="grid gap-3 sm:grid-cols-2">
             <x-ui.input
-                wire:model.live.debounce.300ms="search"
+                wire:model.live.debounce.500ms="search"
                 label="Search"
                 placeholder="Search policy title"
             />

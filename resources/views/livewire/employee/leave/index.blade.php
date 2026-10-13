@@ -49,7 +49,7 @@
 
                 <div class="grid gap-4 sm:grid-cols-2">
                     <x-ui.input
-                        wire:model.live="leaveForm.start_date"
+                        wire:model="leaveForm.start_date"
                         type="date"
                         label="From"
                         :error="$errors->first('leaveForm.start_date')"
@@ -57,7 +57,7 @@
                     />
 
                     <x-ui.input
-                        wire:model.live="leaveForm.end_date"
+                        wire:model="leaveForm.end_date"
                         type="date"
                         label="To"
                         :error="$errors->first('leaveForm.end_date')"
