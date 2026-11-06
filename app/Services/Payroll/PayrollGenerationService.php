@@ -61,7 +61,7 @@ class PayrollGenerationService
             // Anyone with a joining_date after the batch's period_to has no salary
             // to process for this period at all, so they're filtered out here
             // rather than being fetched and skipped later.
-            ->where('joining_date', '<=', $to->toDateString())
+            ->where(fn ($q) => $q->whereNull('joining_date')->orWhere('joining_date', '<=', $to->toDateString()))
             ->with([
                 'salaryStructures' => fn ($q) => $q
                     ->where('status', 'active')
