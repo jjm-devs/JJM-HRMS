@@ -8,7 +8,11 @@
     'placeholder' => '',
 ])
 
-@php $id = $id ?? 'input-' . uniqid(); @endphp
+@php
+    $wireModel = $attributes->whereStartsWith('wire:model')->first();
+    $name = $attributes->get('name');
+    $id = $id ?? ($name ? 'input-' . $name : ($wireModel ? 'input-' . str_replace(['.', '[', ']', '$', ' '], '-', $wireModel) : ($label ? 'input-' . \Illuminate\Support\Str::slug($label) : 'input-' . uniqid())));
+@endphp
 
 <div class="flex flex-col gap-1.5">
     @if ($label)

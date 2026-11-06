@@ -8,7 +8,11 @@
     'placeholder' => 'Select an option',
 ])
 
-@php $id = $id ?? 'select-' . uniqid(); @endphp
+@php
+    $wireModel = $attributes->whereStartsWith('wire:model')->first();
+    $name = $attributes->get('name');
+    $id = $id ?? ($name ? 'select-' . $name : ($wireModel ? 'select-' . str_replace(['.', '[', ']', '$', ' '], '-', $wireModel) : ($label ? 'select-' . \Illuminate\Support\Str::slug($label) : 'select-' . uniqid())));
+@endphp
 
 <div class="flex flex-col gap-1.5">
     @if ($label)

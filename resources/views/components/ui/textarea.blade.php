@@ -8,7 +8,11 @@
     'rows'        => 3,
 ])
 
-@php $id = $id ?? 'textarea-' . uniqid(); @endphp
+@php
+    $wireModel = $attributes->whereStartsWith('wire:model')->first();
+    $name = $attributes->get('name');
+    $id = $id ?? ($name ? 'textarea-' . $name : ($wireModel ? 'textarea-' . str_replace(['.', '[', ']', '$', ' '], '-', $wireModel) : ($label ? 'textarea-' . \Illuminate\Support\Str::slug($label) : 'textarea-' . uniqid())));
+@endphp
 
 <div class="flex flex-col gap-1.5">
     @if ($label)

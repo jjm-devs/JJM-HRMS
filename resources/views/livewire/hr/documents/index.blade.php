@@ -9,7 +9,7 @@
     <x-ui.card class="mt-5">
         <div class="grid gap-3 lg:grid-cols-3">
             <x-ui.input
-                wire:model.live.debounce.300ms="search"
+                wire:model.live.debounce.500ms="search"
                 label="Search"
                 placeholder="Document, employee, or batch"
             />

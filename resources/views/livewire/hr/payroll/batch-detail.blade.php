@@ -354,7 +354,7 @@
     <x-ui.card class="mt-5">
         <div class="grid gap-3 md:grid-cols-3 md:items-end">
             <x-ui.input
-                wire:model.live.debounce.300ms="search"
+                wire:model.live.debounce.500ms="search"
                 label="Search Employee"
                 placeholder="Name or employee code"
             />
